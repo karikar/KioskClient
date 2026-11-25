@@ -304,7 +304,9 @@ A letöltött lista a `/var/lib/kiosk/state/allowlist.json` fájlba kerül
 - **Tiltott, de látható oldal**: a csempén **PIN** jelvény; kattintásra a
   PIN-ablak jön, és csak sikeres PIN után nyílik meg a cím.
 - **Könyvjelzősáv**: `⌂ Kezdőlap` (arany gomb) + `Engedélyezett oldalak`
-  mappa, ami legördülve a teljes listát mutatja.
+  mappa, ami legördülve a teljes listát mutatja. A mappát a Firefox
+  `ManagedBookmarks` házirendje adja (egyetlen, csak olvasható mappa), így
+  nem duplikálódhat; a Kezdőlap a `Bookmarks` házirendből jön.
 - **Vissza / Előre** gomb a felső sávban (nagy, érintésbarát méret).
 - Se címsor, se tab-sáv, se hamburger menü, se rendszermenü (a kezdőlap saját
   címbeviteli mezője kivétel).
@@ -834,9 +836,16 @@ szól):
 sudo kiosk-admin.sh set-update-token
 ```
 
-Kézi parancsok:
+**Azonnali frissítés az admin felületről:** Ctrl+Alt+A → PIN →
+„Programfrissítés” kártya → **Frissítés keresése**, majd **Frissítés most**.
+A frissítés külön systemd unitban fut (túléli az admin szolgáltatás
+újraindulását), és a karbantartási ablakot nem várja meg. Néhány perc
+múlva a böngésző újraindul, és a láblécben az új verzió látszik.
+
+Kézi parancsok (SSH):
 
 ```bash
+sudo systemctl start kiosk-update.service  # frissítés most, SSH-megszakadás ellen védve
 sudo kiosk-admin.sh version              # telepített + legutóbbi kiadás
 sudo kiosk-admin.sh self-update --check  # csak ellenőrzés
 sudo kiosk-admin.sh self-update          # frissítés most (ha van újabb)

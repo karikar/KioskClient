@@ -612,6 +612,21 @@
         beállítani; hardver- és kijelzőfüggő.</p>
     </section>
 
+    <section class="card" id="update-card">
+      <div class="card-head">
+        <h2>Programfrissítés</h2>
+      </div>
+      <p class="hint" id="update-info">Telepített verzió: …</p>
+      <div class="docs-toolbar" style="margin-top:12px">
+        <button class="secondary" id="update-check" type="button">Frissítés keresése</button>
+        <button class="primary" id="update-start" type="button" disabled>Frissítés most</button>
+      </div>
+      <p class="hint" id="update-status"></p>
+      <p class="hint">A frissítés néhány percig tart; a végén a böngésző újraindul.
+        Ez a gomb a karbantartási ablakot (<code>UPDATE_WINDOW</code>) nem várja meg.
+        Ez a rész nem a GitHubra mentéshez tartozik.</p>
+    </section>
+
     <div class="savebar">
       <button class="primary" id="save" type="button">Mentés a GitHubra</button>
       <span class="hint" id="save-note"></span>
@@ -935,8 +950,7 @@
   }
 
   // Telepített programverzió és az önfrissítő utolsó állapota.
-  function loadVersion() {
-    var resultText = {
+  var updateResultText = {
       'up-to-date': 'naprakész',
       'updated': 'frissítve',
       'available': 'frissítés elérhető',
@@ -949,25 +963,77 @@
       'missing-asset': 'a kiadásból hiányzik a csomag',
       'missing-checksum': 'a kiadásból hiányzik az ellenőrzőösszeg',
       'checksum-mismatch': 'ellenőrzőösszeg-hiba'
-    };
+  };
+
+  function loadVersion() {
     fetch('/version', { cache: 'no-store' }).then(function (response) {
       return response.json();
     }).then(function (data) {
-      var text = 'Verzió: ' + (data.version || '?');
-      if (data.latest && data.latest !== data.version && data.result !== 'up-to-date') {
-        text += ' · legújabb kiadás: ' + data.latest;
-      }
-      if (data.result) {
-        text += ' · ' + (resultText[data.result] || data.result);
-      }
-      if (data.checked) {
-        text += ' (ellenőrizve: ' + data.checked + ')';
-      }
-      $('version-info').textContent = text;
+      showVersion(data);
     }).catch(function () {
       $('version-info').textContent = 'Verzió: nem olvasható';
+      $('update-info').textContent = 'Telepített verzió: nem olvasható';
     });
   }
+
+  function showVersion(data) {
+    var resultText = updateResultText;
+    var newer = !!(data.latest && data.latest !== data.version &&
+      (data.available || data.result === 'available' || data.result === 'waiting-window' ||
+       data.result === 'skipped-failed'));
+    var text = 'Verzió: ' + (data.version || '?');
+    if (newer) {
+      text += ' · legújabb kiadás: ' + data.latest;
+    }
+    if (data.result) {
+      text += ' · ' + ((resultText && resultText[data.result]) || data.result);
+    }
+    if (data.checked) {
+      text += ' (ellenőrizve: ' + data.checked + ')';
+    }
+    $('version-info').textContent = text;
+    $('update-info').textContent = 'Telepített verzió: ' + (data.version || '?') +
+      (newer ? ' · elérhető: ' + data.latest : (data.latest ? ' · legújabb kiadás: ' + data.latest : ''));
+    $('update-start').disabled = !newer || updateRunning;
+  }
+
+  // --- programfrissítés gombok ---
+  var updateRunning = false;
+
+  function checkUpdate() {
+    $('update-check').disabled = true;
+    $('update-status').textContent = 'Frissítés keresése a GitHubon…';
+    api('/update', { action: 'check' }).then(function (data) {
+      showVersion(data);
+      $('update-status').textContent = data.available
+        ? 'Új verzió érhető el: ' + data.latest + '. A „Frissítés most” gombbal telepíthető.'
+        : 'A kiosk naprakész (' + (data.version || '?') + ').';
+    }).catch(function (err) {
+      $('update-status').textContent = err.message;
+    }).then(function () {
+      $('update-check').disabled = false;
+    });
+  }
+
+  function startUpdate() {
+    if (!window.confirm('Indulhat a frissítés? Néhány perc, a végén a böngésző újraindul.')) {
+      return;
+    }
+    updateRunning = true;
+    $('update-start').disabled = true;
+    $('update-check').disabled = true;
+    api('/update', { action: 'start' }).then(function () {
+      $('update-status').textContent = 'A frissítés elindult. Néhány perc múlva a böngésző ' +
+        'újraindul, és a kezdőlap láblécében az új verzió látszik.';
+    }).catch(function (err) {
+      updateRunning = false;
+      $('update-check').disabled = false;
+      $('update-status').textContent = err.message;
+    });
+  }
+
+  $('update-check').addEventListener('click', checkUpdate);
+  $('update-start').addEventListener('click', startUpdate);
 
   function loadConfig() {
     loadVersion();

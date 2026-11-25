@@ -8,6 +8,8 @@
 #   POST /config  {pin}                 - aktuális allowlist + meta
 #   POST /save    {pin, config}         - mentés GitHubra (write token)
 #   POST /power   {pin, action}         - reboot / poweroff
+#   POST /update  {pin, action}         - check (frissítés keresése) / start
+#   GET  /version                       - telepített verzió + frissítés állapota
 #
 # A tokenek root-only fájlokban vannak; a böngésző soha nem látja őket.
 # =============================================================================
@@ -61,6 +63,11 @@ TEST_CONFIG = os.environ.get("KIOSK_ADMIN_TEST_CONFIG", "")
 TEST_SAVE = os.environ.get("KIOSK_ADMIN_TEST_SAVE", "")
 TEST_DISCOVER = os.environ.get("KIOSK_ADMIN_TEST_DISCOVER_FILE", "")
 TEST_SKIP_POWER = os.environ.get("KIOSK_ADMIN_TEST_SKIP_POWER") == "1"
+UPDATE_SCRIPT = os.environ.get("KIOSK_UPDATE_SCRIPT", "/usr/local/bin/kiosk-update.sh")
+UPDATE_EXIT_NEWER = 10
+TEST_SKIP_UPDATE = os.environ.get("KIOSK_ADMIN_TEST_SKIP_UPDATE") == "1"
+_test_check_rc = os.environ.get("KIOSK_ADMIN_TEST_UPDATE_CHECK_RC", "")
+TEST_UPDATE_CHECK_RC = int(_test_check_rc) if _test_check_rc.isdigit() else None
 TEST_SKIP_SYNC = os.environ.get("KIOSK_ADMIN_TEST_SKIP_SYNC") == "1"
 TEST_SKIP_RENDER = os.environ.get("KIOSK_ADMIN_TEST_SKIP_RENDER") == "1"
 TEST_SKIP_DOCS = os.environ.get("KIOSK_ADMIN_TEST_SKIP_DOCS") == "1"
@@ -974,6 +981,54 @@ def power_action(action):
         raise AdminError("A művelet nem sikerült: %s" % (detail[-200:] or "ismeretlen hiba"))
 
 
+def update_action(action):
+    """Programfrissítés: "check" = keresés, "start" = frissítés azonnal.
+
+    A frissítést külön, átmeneti systemd unitban indítjuk (systemd-run):
+    a telepítő ezt a szolgáltatást is újraindítja, és a frissítésnek ezt
+    túl kell élnie. A --now kapcsoló a karbantartási ablakot figyelmen
+    kívül hagyja (a gombnyomás kifejezett kérés).
+    """
+    if action == "check":
+        if TEST_UPDATE_CHECK_RC is not None:
+            rc, out, err = TEST_UPDATE_CHECK_RC, "Teszt: új verzió", ""
+        else:
+            try:
+                proc = subprocess.run(
+                    [UPDATE_SCRIPT, "--check"], capture_output=True, text=True, timeout=120
+                )
+            except Exception as exc:  # noqa: BLE001
+                raise AdminError("A frissítés keresése nem indult el: %s" % exc)
+            rc, out, err = proc.returncode, proc.stdout or "", proc.stderr or ""
+        if rc not in (0, UPDATE_EXIT_NEWER):
+            lines = [line for line in err.strip().splitlines() if line.strip()]
+            detail = lines[-1] if lines else "ismeretlen hiba"
+            # "2026-11-25 12:00:00 [ERROR] ..." -> csak az üzenet
+            detail = re.sub(r"^\S+ \S+ \[\w+\s*\]\s*", "", detail)
+            raise AdminError("A frissítés keresése nem sikerült: %s" % detail[-300:])
+        message = (out.strip().splitlines() or [""])[-1]
+        return dict(version_snapshot(), available=(rc == UPDATE_EXIT_NEWER), message=message)
+
+    if action == "start":
+        if not TEST_SKIP_UPDATE:
+            unit = "kiosk-update-now-%d" % int(time.time())
+            try:
+                proc = subprocess.run(
+                    ["systemd-run", "--unit=" + unit, "--no-block", "--collect", "--quiet",
+                     "--description=Kiosk programfrissítés (admin felület)",
+                     UPDATE_SCRIPT, "--now"],
+                    capture_output=True, text=True, timeout=20,
+                )
+            except Exception as exc:  # noqa: BLE001
+                raise AdminError("A frissítés nem indult el: %s" % exc)
+            if proc.returncode != 0:
+                detail = (proc.stderr or proc.stdout or "").strip()
+                raise AdminError("A frissítés nem indult el: %s" % (detail[-200:] or "ismeretlen hiba"))
+        return dict(version_snapshot(), started=True)
+
+    raise AdminError("Ismeretlen művelet.")
+
+
 def config_meta():
     return {
         "owner": GITHUB_OWNER,
@@ -1181,7 +1236,7 @@ class Handler(BaseHTTPRequestHandler):
         if not self._api_request():
             return self._json(403, {"ok": False, "error": "tiltott kérés"})
         if self.path not in (
-            "/auth", "/config", "/save", "/power", "/unlock", "/lock", "/discover",
+            "/auth", "/config", "/save", "/power", "/update", "/unlock", "/lock", "/discover",
             "/docs/list", "/docs/upload", "/docs/delete",
             "/docs/inbox", "/docs/process", "/docs/inbox/delete",
         ):
@@ -1376,6 +1431,13 @@ class Handler(BaseHTTPRequestHandler):
                     "config": normalized,
                 },
             )
+
+        if self.path == "/update":
+            try:
+                result = update_action(str(data.get("action", "")))
+            except AdminError as exc:
+                return self._json(500, dict({"ok": False, "error": str(exc)}, **version_snapshot()))
+            return self._json(200, dict({"ok": True}, **result))
 
         action = str(data.get("action", ""))
         try:

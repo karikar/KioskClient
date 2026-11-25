@@ -74,7 +74,10 @@ prepare_profile() {
           "$KIOSK_PROFILE/sessionstore.jsonlz4" \
           "$KIOSK_PROFILE/.parentlock" \
           "$KIOSK_PROFILE/lock" 2>/dev/null || true
-    rm -rf "$KIOSK_PROFILE/sessionstore-backups" 2>/dev/null || true
+    # A könyvjelző-mentésekből a Firefox üres places.sqlite mellett
+    # visszaállítana - ez okozta a dupla "Engedélyezett oldalak" mappát.
+    rm -rf "$KIOSK_PROFILE/sessionstore-backups" \
+           "$KIOSK_PROFILE/bookmarkbackups" 2>/dev/null || true
 }
 
 cleanup_firefox() {

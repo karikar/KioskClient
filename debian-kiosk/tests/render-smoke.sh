@@ -206,7 +206,7 @@ check "blocked csempe jelölve" "$(grep -c 'tile-blocked' "$TMP/www/blocked-star
 check "blocked PIN jelvény" "$(grep -c 'tile-lock' "$TMP/www/blocked-start.html")" "1"
 render_policies "$TMP/norm-blocked.json" >/dev/null 2>&1
 check "blocked könyvjelző PIN-oldalra mutat" \
-    "$(jq -r '[.policies.Bookmarks[] | select(.URL | contains("unlock?target="))] | length' \
+    "$(jq -r '[.policies.ManagedBookmarks[] | select((.url // "") | contains("unlock?target="))] | length' \
         "$TMP/policies/policies.json")" "1"
 proxy_filter_save="$PROXY_FILTER"
 PROXY_FILTER="$TMP/etc/proxy-filter-blocked"
@@ -229,9 +229,18 @@ check "programverzió a kezdőlap láblécében" \
 
 POL="$TMP/policies/policies.json"
 check "policies létrejött" "$([ -s "$POL" ] && echo yes)" "yes"
-check "könyvjelzők száma" "$(jq -r '.policies.Bookmarks | length' "$POL")" "16"
-check "mappában lévő könyvjelzők" \
-    "$(jq -r '[.policies.Bookmarks[] | select(.Folder == "Engedélyezett oldalak")] | length' "$POL")" "15"
+check "csak a Kezdőlap normál könyvjelző" "$(jq -r '.policies.Bookmarks | length' "$POL")" "1"
+check "nincs Folder (duplikálódó mappa)" \
+    "$(jq -r '[.policies.Bookmarks[] | select(has("Folder"))] | length' "$POL")" "0"
+check "egyetlen kezelt mappa neve" \
+    "$(jq -r '[.policies.ManagedBookmarks[] | select(has("toplevel_name"))] | map(.toplevel_name) | join(",")' "$POL")" \
+    "Engedélyezett oldalak"
+check "kezelt mappában lévő oldalak" \
+    "$(jq -r '[.policies.ManagedBookmarks[] | select(has("url"))] | length' "$POL")" "15"
+check "user.js: nincs könyvjelző-mentés" \
+    "$(grep -c 'browser.bookmarks.max_backups", 0' "$ROOT/firefox/user.js")" "1"
+check "session törli a bookmarkbackups-ot" \
+    "$(grep -c '"$KIOSK_PROFILE/bookmarkbackups"' "$ROOT/bin/kiosk-session.sh")" "1"
 check "home könyvjelző" "$(jq -r '.policies.Bookmarks[0].Title' "$POL")" "⌂ Kezdőlap"
 check "home URL" \
     "$(jq -r '.policies.Bookmarks[0].URL | startswith("file://")' "$POL")" "true"

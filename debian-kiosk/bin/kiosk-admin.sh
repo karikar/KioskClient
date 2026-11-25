@@ -354,7 +354,9 @@ doctor)
     pol="/etc/firefox-esr/policies/policies.json"
     if [ -r "$pol" ]; then
         printf 'Proxy kulcs: %s\n' "$(jq -r '.policies | if has("Proxy") then .Proxy.HTTPProxy else "nincs (kikapcsolva)" end' "$pol" 2>/dev/null)"
-        printf 'Könyvjelzők: %s\n' "$(jq -r '.policies.Bookmarks | length' "$pol" 2>/dev/null)"
+        printf 'Könyvjelzők: %s + %s oldal az "Engedélyezett oldalak" mappában\n' \
+            "$(jq -r '.policies.Bookmarks | length' "$pol" 2>/dev/null)" \
+            "$(jq -r '[.policies.ManagedBookmarks[]? | select(has("url"))] | length' "$pol" 2>/dev/null)"
     else
         echo "HIÁNYZIK: $pol"
     fi

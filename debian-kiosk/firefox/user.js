@@ -16,6 +16,13 @@ user_pref("browser.toolbars.bookmarks.visibility", "always");
 user_pref("browser.toolbarbuttons.introduced.homeButton", false);
 user_pref("browser.altClickSave", false);
 
+// --- könyvjelzők: csak a házirendből ----------------------------------------
+// Nincs könyvjelző-mentés: a session minden indításkor törli a places.sqlite-ot,
+// és ha lenne mentés, a Firefox abból visszaállítaná a régi könyvjelzőket,
+// amire a házirend még egyszer rátenné a sajátját (dupla mappa).
+user_pref("browser.bookmarks.max_backups", 0);
+user_pref("browser.bookmarks.restore_default_bookmarks", false);
+
 // --- indulás: mindig a helyi kezdőlap --------------------------------------
 user_pref("browser.startup.page", 1);
 user_pref("browser.startup.homepage", "file:///srv/kiosk/start.html");

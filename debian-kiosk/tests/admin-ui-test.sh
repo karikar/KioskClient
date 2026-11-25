@@ -75,6 +75,8 @@ KIOSK_DOCS_DIR="$TMP/docs" \
 KIOSK_INBOX_DIR="$TMP/inbox" \
 KIOSK_ADMIN_TEST_SKIP_DOCS=1 \
 KIOSK_ADMIN_TEST_SKIP_POWER=1 \
+KIOSK_ADMIN_TEST_SKIP_UPDATE=1 \
+KIOSK_ADMIN_TEST_UPDATE_CHECK_RC=10 \
 KIOSK_ADMIN_TEST_SKIP_SYNC=1 \
 KIOSK_ADMIN_TEST_SKIP_RENDER=1 \
     python3 "$ROOT/bin/kiosk-admin-ui.py" >"$TMP/server.log" 2>&1 &
@@ -239,6 +241,25 @@ cat >"$TMP/power-bad.json" <<'JSON'
 JSON
 code="$(post_file /power "$TMP/power-bad.json")"
 check "ismeretlen művelet 400" "$code" "400"
+
+echo "5a) Programfrissítés gomb (/update, teszt módban nem indít)"
+printf '{"pin":"1234","action":"check"}\n' >"$TMP/upd-check.json"
+code="$(post_file /update "$TMP/upd-check.json")"
+check "frissítés keresése 200" "$code" "200"
+check "új verzió jelezve" "$(json "$TMP/resp.json" available)" "True"
+check "telepített verzió a válaszban" "$(json "$TMP/resp.json" version)" "1.2.3"
+printf '{"pin":"1234","action":"start"}\n' >"$TMP/upd-start.json"
+code="$(post_file /update "$TMP/upd-start.json")"
+check "frissítés indítása 200" "$code" "200"
+check "frissítés elindult" "$(json "$TMP/resp.json" started)" "True"
+printf '{"pin":"9999","action":"start"}\n' >"$TMP/upd-badpin.json"
+code="$(post_file /update "$TMP/upd-badpin.json")"
+check "frissítés rossz PIN-nel 403" "$code" "403"
+printf '{"pin":"1234","action":"rm"}\n' >"$TMP/upd-bad.json"
+code="$(post_file /update "$TMP/upd-bad.json")"
+check "ismeretlen frissítési művelet elutasítva" "$code" "500"
+check "frissítés gombok az admin oldalon" \
+    "$(grep -cE 'id="update-(check|start)"' "$ROOT/web/admin.html")" "2"
 
 echo "5b) PIN-es proxy feloldás"
 code="$(curl -s -o "$TMP/unlock.html" -w '%{http_code}' "http://127.0.0.1:${PORT}/unlock")"

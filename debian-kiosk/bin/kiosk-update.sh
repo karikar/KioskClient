@@ -7,6 +7,8 @@
 #   kiosk-update.sh --dry-run   letölt + ellenőriz, de nem telepít
 #   kiosk-update.sh --force     a legutóbbi kiadás telepítése akkor is, ha nem
 #                               újabb, vagy korábban hibásnak lett jelölve
+#   kiosk-update.sh --now       azonnal (karbantartási ablak és UPDATE_ENABLED=0
+#                               figyelmen kívül; az admin felület gombja)
 #
 # Működés:
 #   1. GitHub API: /repos/<owner>/<repo>/releases/latest (draft és pre-release
@@ -29,13 +31,15 @@ load_conf
 
 MODE="update"
 FORCE=0
+NOW=0
 while [ $# -gt 0 ]; do
     case "$1" in
         --check) MODE="check" ;;
         --dry-run) MODE="dry-run" ;;
         --force) FORCE=1 ;;
+        --now) NOW=1 ;;
         -h | --help)
-            sed -n '3,10p' "$0" | sed 's/^# \{0,1\}//'
+            sed -n '3,12p' "$0" | sed 's/^# \{0,1\}//'
             exit 0
             ;;
         *) die "Ismeretlen opció: $1" ;;
@@ -49,7 +53,7 @@ if [ "$MODE" = "update" ]; then
     require_root
 fi
 
-if [ "${UPDATE_ENABLED:-1}" != "1" ] && [ "$MODE" = "update" ] && [ "$FORCE" != "1" ]; then
+if [ "${UPDATE_ENABLED:-1}" != "1" ] && [ "$MODE" = "update" ] && [ "$FORCE" != "1" ] && [ "$NOW" != "1" ]; then
     log "INFO" "Az önfrissítés ki van kapcsolva (UPDATE_ENABLED=0)."
     exit 0
 fi
@@ -200,7 +204,7 @@ if [ -r "$failed_file" ] && [ "$(tr -d '[:space:]' <"$failed_file")" = "$latest"
 fi
 
 # Karbantartási ablak (pl. UPDATE_WINDOW=02-05: 02:00 és 04:59 között).
-if [ -n "${UPDATE_WINDOW:-}" ] && [ "$MODE" = "update" ] && [ "$FORCE" != "1" ]; then
+if [ -n "${UPDATE_WINDOW:-}" ] && [ "$MODE" = "update" ] && [ "$FORCE" != "1" ] && [ "$NOW" != "1" ]; then
     if [[ "$UPDATE_WINDOW" =~ ^([0-9]{1,2})-([0-9]{1,2})$ ]]; then
         w_from=$((10#${BASH_REMATCH[1]}))
         w_to=$((10#${BASH_REMATCH[2]}))

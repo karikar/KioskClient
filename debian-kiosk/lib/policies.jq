@@ -13,14 +13,17 @@
 # ---------------------------------------------------------------------------
 
 $al[0] as $a
-| ([ { Title: $home_title, URL: $start_url, Placement: "toolbar" } ]
+# A "Kezdőlap" egyetlen, mappa nélküli könyvjelző a sávon.
+| [ { Title: $home_title, URL: $start_url, Placement: "toolbar" } ] as $bookmarks
+# Az engedélyezett oldalak mappáját a ManagedBookmarks adja: ez nem a
+# places.sqlite-ban él, hanem minden induláskor egy darab, csak olvasható
+# mappaként jelenik meg a könyvjelzősávon - így nem duplikálódhat.
+| ([ { toplevel_name: $folder } ]
    + [ $a.sites[]
-       | { Title: .title,
-           URL: (if .allowed == false
+       | { name: .title,
+           url: (if .allowed == false
                  then ($admin_ui + "unlock?target=" + (.url | @uri))
-                 else .url end),
-           Placement: "toolbar",
-           Folder: $folder } ]) as $bookmarks
+                 else .url end) } ]) as $managed
 
 | {
     policies: (
@@ -47,6 +50,7 @@ $al[0] as $a
         Homepage: { URL: $start_url, StartPage: "homepage", Locked: true },
         DisplayBookmarksToolbar: true,
         Bookmarks: $bookmarks,
+        ManagedBookmarks: $managed,
 
         # --- about: oldalak és jelszavak tiltása ---
         BlockAboutConfig: true,

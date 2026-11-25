@@ -116,8 +116,10 @@ menubar,
     gap: 6px !important;
 }
 
-/* Csak a sávon lévő elemekre hat, a legördülő menü elemeire nem. */
-#PlacesToolbarItems > .bookmark-item {
+/* Csak a sávon lévő elemekre hat, a legördülő menü elemeire nem.
+   A #managed-bookmarks az "Engedélyezett oldalak" mappa (ManagedBookmarks). */
+#PlacesToolbarItems > .bookmark-item,
+#managed-bookmarks {
     min-height: 38px !important;
     padding: 7px 14px !important;
     border-radius: 9px !important;
@@ -125,11 +127,13 @@ menubar,
     font-size: 14px !important;
 }
 
-#PlacesToolbarItems > .bookmark-item:hover {
+#PlacesToolbarItems > .bookmark-item:hover,
+#managed-bookmarks:hover {
     background: #e8f0fd !important;
 }
 
-#PlacesToolbarItems > .bookmark-item > .toolbarbutton-icon {
+#PlacesToolbarItems > .bookmark-item > .toolbarbutton-icon,
+#managed-bookmarks > .toolbarbutton-icon {
     fill: #0e1a2f !important;
     -moz-context-properties: fill, fill-opacity !important;
 }
