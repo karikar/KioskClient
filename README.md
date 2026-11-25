@@ -1,0 +1,2 @@
+# KioskClient
+KIOSK rendszer Boltoknak
