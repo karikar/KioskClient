@@ -72,6 +72,7 @@ load_conf() {
     : "${PROXY_BYPASS_MINUTES:=15}"
     : "${KIOSK_BYPASS_FILE:=${KIOSK_RUN}/proxy-bypass}"
     : "${USB_IMPORT:=1}"
+    : "${USB_IMPORT_MODE:=manual}"
     : "${SITE_NAME:=Kiosk}"
     : "${MAX_FILE_MB:=2048}"
     : "${KIOSK_LANG:=hu_HU.UTF-8}"

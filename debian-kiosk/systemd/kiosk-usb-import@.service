@@ -6,7 +6,11 @@ ConditionPathExists=/dev/%i
 
 [Service]
 Type=oneshot
+# Kézi módban az USB csatolva marad, amíg ki nem húzzák: a unit addig
+# "aktív", kihúzáskor (BindsTo) az ExecStop leválasztja.
+RemainAfterExit=yes
 ExecStart=/usr/local/bin/kiosk-usb-import.sh /dev/%i
+ExecStop=/usr/local/bin/kiosk-usb-import.sh --release /dev/%i
 TimeoutStartSec=1800
 Nice=10
 IOSchedulingClass=idle

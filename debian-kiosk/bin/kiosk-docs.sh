@@ -126,6 +126,7 @@ render_docs_index() {
           title="Sötét téma" aria-label="Sötét téma" aria-pressed="false">🌙</button>
   <a class="back" href="../start.html">&#8592; Kezdőlap</a>
   <div class="brand">Dokumentumok</div>
+  <a class="docs-manage" href="http://127.0.0.1:${ADMIN_UI_PORT}/#usb">Feltöltés USB-ről (PIN)</a>
   <a class="docs-manage" href="http://127.0.0.1:${ADMIN_UI_PORT}/#docs">Dokumentumok kezelése (PIN)</a>
   <div class="clock" id="clock">--:--</div>
 </header>

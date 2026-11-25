@@ -27,6 +27,17 @@ CONFIG="$TMP/config.json"
 SAVED="$TMP/saved.json"
 BYPASS="$TMP/bypass"
 mkdir -p "$TMP/docs" "$TMP/inbox"
+# Ál-USB: kézi módban a kiosk-usb-import.sh így csatolná (USB_ROOT/<eszköz>)
+mkdir -p "$TMP/usb/sdz1/Iratok/2026" "$TMP/usb/sdz1/.rejtett" "$TMP/usb/sdz1/System Volume Information"
+printf 'pdf\n' >"$TMP/usb/sdz1/arlista.pdf"
+printf 'word\n' >"$TMP/usb/sdz1/Iratok/szabalyzat.docx"
+printf 'kep\n' >"$TMP/usb/sdz1/Iratok/2026/plakat.jpg"
+printf 'exe\n' >"$TMP/usb/sdz1/program.exe"
+printf 'titok\n' >"$TMP/usb/sdz1/.rejtett/titok.pdf"
+printf 'sys\n' >"$TMP/usb/sdz1/System Volume Information/x.pdf"
+printf 'kivul\n' >"$TMP/kivul.pdf"
+ln -s "$TMP/kivul.pdf" "$TMP/usb/sdz1/link.pdf" 2>/dev/null || true
+printf '{"id":"sdz1","label":"PENDRIVE","fstype":"vfat","size":8000000000}\n' >"$TMP/usb/.sdz1.json"
 
 SALT="testsalt"
 HASH="$(python3 - "$SALT" <<'PY'
@@ -73,6 +84,10 @@ KIOSK_ADMIN_TEST_SAVE="$SAVED" \
 KIOSK_ADMIN_TEST_DISCOVER_FILE="$ROOT/tests/fixtures/discover.html" \
 KIOSK_DOCS_DIR="$TMP/docs" \
 KIOSK_INBOX_DIR="$TMP/inbox" \
+USB_MOUNT_ROOT="$TMP/usb" \
+KIOSK_USB_MODE_FILE="$TMP/usb-import-mode" \
+KIOSK_CONF="$TMP/nincs.conf" \
+KIOSK_ADMIN_TEST_USB_NO_MOUNTCHECK=1 \
 KIOSK_ADMIN_TEST_SKIP_DOCS=1 \
 KIOSK_ADMIN_TEST_SKIP_POWER=1 \
 KIOSK_ADMIN_TEST_SKIP_UPDATE=1 \
@@ -260,6 +275,58 @@ code="$(post_file /update "$TMP/upd-bad.json")"
 check "ismeretlen frissítési művelet elutasítva" "$code" "500"
 check "frissítés gombok az admin oldalon" \
     "$(grep -cE 'id="update-(check|start)"' "$ROOT/web/admin.html")" "2"
+
+echo "5u) USB tallózó"
+usbq() {
+    python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print(eval(sys.argv[2]))' \
+        "$TMP/resp.json" "$1"
+}
+printf '{"pin":"1234"}\n' >"$TMP/usb-list.json"
+code="$(post_file /usb/list "$TMP/usb-list.json")"
+check "USB lista 200" "$code" "200"
+check "alap mód: kézi" "$(usbq 'd["mode"]')" "manual"
+check "egy USB eszköz" "$(usbq 'len(d["devices"])')" "1"
+check "USB címke" "$(usbq 'd["devices"][0]["label"]')" "PENDRIVE"
+check "támogatott fájlok (rejtett/rendszer/exe/link nélkül)" \
+    "$(usbq '",".join(f["path"] for f in d["devices"][0]["files"])')" \
+    "arlista.pdf,Iratok/szabalyzat.docx,Iratok/2026/plakat.jpg"
+printf '{"pin":"9999"}\n' >"$TMP/usb-badpin.json"
+code="$(post_file /usb/list "$TMP/usb-badpin.json")"
+check "USB lista rossz PIN-nel 403" "$code" "403"
+
+printf '{"pin":"1234","device":"sdz1","files":["arlista.pdf","Iratok/2026/plakat.jpg"]}\n' >"$TMP/usb-imp.json"
+code="$(post_file /usb/import "$TMP/usb-imp.json")"
+check "kijelöltek bemásolása 200" "$code" "200"
+check "2 fájl bemásolva" "$(usbq 'len(d["copied"])')" "2"
+check "inboxban: arlista.pdf" "$([ -s "$TMP/inbox/arlista.pdf" ] && echo yes)" "yes"
+check "inboxban: plakat.jpg" "$([ -s "$TMP/inbox/plakat.jpg" ] && echo yes)" "yes"
+check "nem kijelölt nem került be" "$([ -e "$TMP/inbox/szabalyzat.docx" ] && echo yes || echo no)" "no"
+code="$(post_file /usb/import "$TMP/usb-imp.json")"
+check "újra bemásolva: névütközés kezelve" "$([ -s "$TMP/inbox/arlista-1.pdf" ] && echo yes)" "yes"
+
+for bad in '../kivul.pdf' 'link.pdf' '/etc/passwd' 'program.exe' '.rejtett/../../kivul.pdf'; do
+    printf '{"pin":"1234","device":"sdz1","files":["%s"]}\n' "$bad" >"$TMP/usb-bad.json"
+    code="$(post_file /usb/import "$TMP/usb-bad.json")"
+    check "tiltott útvonal elutasítva: $bad" "$code" "400"
+done
+printf '{"pin":"1234","device":"../etc","files":["a.pdf"]}\n' >"$TMP/usb-baddev.json"
+code="$(post_file /usb/import "$TMP/usb-baddev.json")"
+check "érvénytelen eszköz elutasítva" "$code" "400"
+check "nem került be fájl a mappán kívülről" "$([ -e "$TMP/inbox/kivul.pdf" ] && echo yes || echo no)" "no"
+
+printf '{"pin":"1234","mode":"auto"}\n' >"$TMP/usb-mode.json"
+code="$(post_file /usb/mode "$TMP/usb-mode.json")"
+check "automatikus mód beállítva" "$(usbq 'd["mode"]')" "auto"
+check "mód fájl" "$(cat "$TMP/usb-import-mode")" "auto"
+printf '{"pin":"1234","mode":"rm -rf"}\n' >"$TMP/usb-mode-bad.json"
+code="$(post_file /usb/mode "$TMP/usb-mode-bad.json")"
+check "érvénytelen mód elutasítva" "$code" "400"
+printf '{"pin":"1234","device":"sdz1"}\n' >"$TMP/usb-eject.json"
+code="$(post_file /usb/eject "$TMP/usb-eject.json")"
+check "kiadás 200" "$code" "200"
+check "USB tallózó az admin oldalon" "$(grep -c 'id="usb-devices"' "$ROOT/web/admin.html")" "1"
+# a későbbi inbox-tesztek üres inboxszal indulnak
+find "$TMP/inbox" -maxdepth 1 -type f -delete
 
 echo "5b) PIN-es proxy feloldás"
 code="$(curl -s -o "$TMP/unlock.html" -w '%{http_code}' "http://127.0.0.1:${PORT}/unlock")"

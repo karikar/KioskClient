@@ -315,6 +315,14 @@
   }
   .docs-toolbar input[type="text"] { flex: 1 1 260px; min-width: 0; }
   .docs-list { margin-top: 8px; border-top: 1px solid var(--border); }
+  .usb-mode { display: flex; gap: 8px; align-items: flex-start; margin: 10px 0 4px; font-size: 14px; cursor: pointer; }
+  .usb-mode input { margin-top: 3px; }
+  .usb-device { margin-top: 14px; border: 1px solid var(--border); border-radius: 10px; padding: 12px; }
+  .usb-device h3 { margin: 0 0 6px; font-size: 15px; }
+  .usb-list { max-height: 420px; overflow: auto; border-top: 1px solid var(--border); }
+  .usb-row { cursor: pointer; }
+  .usb-row input { flex: 0 0 auto; width: 18px; height: 18px; }
+  .usb-row.disabled { opacity: .5; cursor: default; }
   .docs-row {
     display: flex;
     align-items: center;
@@ -593,6 +601,23 @@
       </div>
       <p class="hint" id="docs-status"></p>
       <div class="docs-list" id="docs-list"></div>
+    </section>
+
+    <section class="card" id="usb">
+      <div class="card-head">
+        <h2>USB tallózó</h2>
+        <button class="secondary" id="usb-refresh" type="button">USB frissítése</button>
+      </div>
+      <p class="hint">Dugd be az USB-t: néhány másodperc múlva itt megjelennek a rajta lévő
+        dokumentumok. Pipáld ki, amit be akarsz tenni a <strong>Helyi dokumentumok</strong> közé,
+        majd <strong>Kijelöltek bemásolása</strong>. Az USB csak olvasva van csatolva, rajta semmi
+        nem változik. Kihúzás előtt nyomd meg a <strong>Kiadás</strong> gombot.</p>
+      <label class="usb-mode">
+        <input type="checkbox" id="usb-auto">
+        <span>Automatikus import: bedugáskor <em>minden</em> támogatott fájl bekerül (kiválasztás nélkül)</span>
+      </label>
+      <p class="hint" id="usb-status"></p>
+      <div id="usb-devices"></div>
     </section>
 
     <section class="card">
@@ -1375,6 +1400,206 @@
     });
   }
 
+  // --- USB tallózó ---------------------------------------------------------
+  var usbSignature = null;   // a csatolt eszközök + fájlok "ujjlenyomata"
+  var usbSelected = {};      // "eszköz|útvonal" -> true (frissítéskor is megmarad)
+  var usbBusy = false;
+  var usbTimer = null;
+
+  function usbKey(dev, path) { return dev + '|' + path; }
+
+  function renderUsb(data) {
+    var box = $('usb-devices');
+    $('usb-auto').checked = data.mode === 'auto';
+    var devices = data.devices || [];
+    usbSignature = JSON.stringify(devices.map(function (d) {
+      return [d.id, (d.files || []).length];
+    }));
+    box.textContent = '';
+    if (!devices.length) {
+      $('usb-status').textContent = data.mode === 'auto'
+        ? 'Nincs csatolt USB. Automatikus módban bedugáskor minden fájl magától bekerül.'
+        : 'Nincs bedugott USB (vagy még csatolás alatt van).';
+      return;
+    }
+    $('usb-status').textContent = '';
+    devices.forEach(function (dev) {
+      var wrap = document.createElement('div');
+      wrap.className = 'usb-device';
+
+      var title = document.createElement('h3');
+      title.textContent = (dev.label || 'USB') + ' (' + dev.id + ')' +
+        (dev.fstype ? ' · ' + dev.fstype : '') + (dev.size ? ' · ' + docSize(dev.size) : '');
+      wrap.appendChild(title);
+
+      var files = dev.files || [];
+      var bar = document.createElement('div');
+      bar.className = 'docs-toolbar';
+      var all = document.createElement('button');
+      all.type = 'button';
+      all.className = 'secondary';
+      all.textContent = 'Összes kijelölése';
+      var copy = document.createElement('button');
+      copy.type = 'button';
+      copy.className = 'primary';
+      copy.textContent = 'Kijelöltek bemásolása';
+      var eject = document.createElement('button');
+      eject.type = 'button';
+      eject.className = 'secondary';
+      eject.textContent = 'Kiadás (biztonságos eltávolítás)';
+      var count = document.createElement('span');
+      count.className = 'hint';
+      bar.appendChild(all);
+      bar.appendChild(copy);
+      bar.appendChild(eject);
+      bar.appendChild(count);
+      wrap.appendChild(bar);
+
+      var list = document.createElement('div');
+      list.className = 'docs-list usb-list';
+      var checks = [];
+
+      function updateCount() {
+        var n = checks.filter(function (c) { return c.checked; }).length;
+        count.textContent = n + ' kijelölve / ' + files.length + ' fájl' +
+          (dev.truncated ? ' (a lista csonkolva)' : '');
+        copy.disabled = n === 0 || usbBusy;
+        all.textContent = n && n === checks.filter(function (c) { return !c.disabled; }).length
+          ? 'Kijelölés törlése' : 'Összes kijelölése';
+      }
+
+      if (!files.length) {
+        var empty = document.createElement('p');
+        empty.className = 'hint';
+        empty.textContent = 'Az USB-n nincs támogatott dokumentum (PDF, Office, kép, videó, hang).';
+        list.appendChild(empty);
+      }
+      files.forEach(function (file) {
+        var row = document.createElement('label');
+        row.className = 'docs-row usb-row' + (file.too_big ? ' disabled' : '');
+        var check = document.createElement('input');
+        check.type = 'checkbox';
+        check.disabled = !!file.too_big;
+        check.checked = !file.too_big && !!usbSelected[usbKey(dev.id, file.path)];
+        check.addEventListener('change', function () {
+          if (check.checked) usbSelected[usbKey(dev.id, file.path)] = true;
+          else delete usbSelected[usbKey(dev.id, file.path)];
+          updateCount();
+        });
+        check.dataset.path = file.path;
+        checks.push(check);
+        var name = document.createElement('span');
+        name.className = 'docs-name';
+        name.title = file.path;
+        name.textContent = file.path;
+        var meta = document.createElement('span');
+        meta.className = 'docs-meta';
+        meta.textContent = file.too_big ? docSize(file.size) + ' · túl nagy' : docSize(file.size);
+        row.appendChild(check);
+        row.appendChild(name);
+        row.appendChild(meta);
+        list.appendChild(row);
+      });
+      wrap.appendChild(list);
+
+      all.addEventListener('click', function () {
+        var selectable = checks.filter(function (c) { return !c.disabled; });
+        var target = !selectable.every(function (c) { return c.checked; });
+        selectable.forEach(function (c) {
+          c.checked = target;
+          if (target) usbSelected[usbKey(dev.id, c.dataset.path)] = true;
+          else delete usbSelected[usbKey(dev.id, c.dataset.path)];
+        });
+        updateCount();
+      });
+
+      copy.addEventListener('click', function () {
+        var chosen = checks.filter(function (c) { return c.checked; })
+          .map(function (c) { return c.dataset.path; });
+        if (!chosen.length) return;
+        usbBusy = true;
+        copy.disabled = true;
+        eject.disabled = true;
+        $('usb-status').textContent = chosen.length + ' fájl bemásolása és feldolgozása… ' +
+          '(nagy videóknál ez eltarthat)';
+        api('/usb/import', { device: dev.id, files: chosen }).then(function (res) {
+          chosen.forEach(function (p) { delete usbSelected[usbKey(dev.id, p)]; });
+          renderDocs(res.docs || []);
+          $('usb-status').textContent = 'Bemásolva: ' + (res.copied || []).length + ' fájl' +
+            ((res.skipped || []).length ? ', kihagyva: ' + res.skipped.join(', ') : '') +
+            '. A Helyi dokumentumok között látható.';
+        }).catch(function (err) {
+          $('usb-status').textContent = 'Hiba: ' + err.message;
+          loadDocs();
+        }).then(function () {
+          usbBusy = false;
+          loadUsb(true);
+        });
+      });
+
+      eject.addEventListener('click', function () {
+        usbBusy = true;
+        eject.disabled = true;
+        copy.disabled = true;
+        api('/usb/eject', { device: dev.id }).then(function (res) {
+          Object.keys(usbSelected).forEach(function (k) {
+            if (k.indexOf(dev.id + '|') === 0) delete usbSelected[k];
+          });
+          renderUsb(res);
+          $('usb-status').textContent = 'Az USB (' + (dev.label || dev.id) + ') kiadva, most már kihúzható.';
+        }).catch(function (err) {
+          $('usb-status').textContent = 'Hiba: ' + err.message;
+        }).then(function () {
+          usbBusy = false;
+        });
+      });
+
+      updateCount();
+      box.appendChild(wrap);
+    });
+  }
+
+  // force: mindenképp újrarajzol; különben csak ha változott az eszközlista
+  // (így a pollozás nem rontja el a folyamatban lévő kijelölést).
+  function loadUsb(force) {
+    if (usbBusy || !pin) return;
+    api('/usb/list').then(function (data) {
+      var sig = JSON.stringify((data.devices || []).map(function (d) {
+        return [d.id, (d.files || []).length];
+      }));
+      if (force || sig !== usbSignature) renderUsb(data);
+      else $('usb-auto').checked = data.mode === 'auto';
+    }).catch(function (err) {
+      $('usb-status').textContent = 'Hiba: ' + err.message;
+    });
+  }
+
+  function startUsbPolling() {
+    if (usbTimer) return;
+    usbTimer = window.setInterval(function () {
+      if (!document.hidden) loadUsb(false);
+    }, 5000);
+  }
+
+  $('usb-refresh').addEventListener('click', function () { loadUsb(true); });
+  $('usb-auto').addEventListener('change', function () {
+    var wantAuto = $('usb-auto').checked;
+    if (wantAuto && !window.confirm('Automatikus módban bedugáskor az USB MINDEN támogatott ' +
+        'fájlja kiválasztás nélkül bekerül. Bekapcsolod?')) {
+      $('usb-auto').checked = false;
+      return;
+    }
+    api('/usb/mode', { mode: wantAuto ? 'auto' : 'manual' }).then(function (data) {
+      renderUsb(data);
+      $('usb-status').textContent = wantAuto
+        ? 'Automatikus import bekapcsolva (a következő bedugástól).'
+        : 'Kézi kiválasztás bekapcsolva (a következő bedugástól).';
+    }).catch(function (err) {
+      $('usb-auto').checked = !wantAuto;
+      $('usb-status').textContent = 'Hiba: ' + err.message;
+    });
+  });
+
   function loadDocs() {
     docsStatus.textContent = 'Dokumentumok betöltése…';
     api('/docs/list').then(function (data) {
@@ -1477,8 +1702,10 @@
       loadConfig();
       loadDocs();
       loadInbox();
-      if (window.location.hash === '#docs') {
-        var docsCard = document.getElementById('docs');
+      loadUsb(true);
+      startUsbPolling();
+      if (window.location.hash === '#docs' || window.location.hash === '#usb') {
+        var docsCard = document.getElementById(window.location.hash.slice(1));
         if (docsCard) docsCard.scrollIntoView();
       }
     }).catch(function (err) {

@@ -349,9 +349,34 @@ kezdőlapon a **Helyi dokumentumok** csempén jelennek meg:
 | DOC/DOCX/ODT/RTF, XLS/XLSX/ODS/CSV, PPT/PPTX/ODP | LibreOffice headless → PDF, utána pdf.js |
 | MP4/M4V/WEBM/MKV/MOV/AVI, MP3/WAV | beépített lejátszó `<video>`/`<audio>` |
 
-Feltöltés USB-ről: dugj be egy USB-t, a udev szabály **csak olvashatóan**
-csatolja, a támogatott fájlokat átmásolja, majd lecsatolja. A másolás után a
-lista automatikusan frissül.
+### Feltöltés USB-ről – USB tallózó (1.4.0-tól)
+
+Két mód van (`USB_IMPORT_MODE` a `kiosk.conf`-ban, alapértelmezés `manual`):
+
+- **manual (kézi, alapértelmezett):** bedugáskor a udev szabály az USB-t
+  **csak olvashatóan** (`ro,nosuid,nodev,noexec`) felcsatolja ide:
+  `/run/media/kiosk-usb/<eszköz>`, de **semmit nem másol**.
+  1. A **Helyi dokumentumok** oldalon kattints a **„Feltöltés USB-ről (PIN)”**
+     linkre, és add meg a PIN-t.
+  2. Az **USB tallózó** kártya 5 másodpercenként frissül; megjelenik a
+     meghajtó és rajta a támogatott fájlok (almappákkal együtt).
+  3. Jelöld ki a kívánt fájlokat (vagy **Összes kijelölése**), majd
+     **Kijelöltek bemásolása** – a fájlok az inboxba kerülnek, és a
+     szokásos feldolgozás (Office → PDF) lefut.
+  4. Végül **Kiadás (biztonságos eltávolítás)**, és kihúzható az USB.
+- **auto (automatikus):** a régi viselkedés – bedugáskor minden támogatott
+  fájl bemásolódik, majd az USB lecsatolódik. A tallózó kártyán az
+  **„Automatikus import”** jelölőnégyzettel kapcsolható; a választás a
+  `/var/lib/kiosk/state/usb-import-mode` fájlban tárolódik, és felülírja a
+  `kiosk.conf` értékét.
+
+Biztonság: a tallózó csak a felcsatolt USB-n belüli, támogatott kiterjesztésű
+fájlokat engedi; szimbolikus linket, `..`-t, abszolút utat elutasít. Rejtett
+mappák, `System Volume Information` és `$RECYCLE.BIN` kimaradnak; legfeljebb
+4 mappa mélység és 3000 fájl listázódik.
+
+> Hyper-V virtuális gépen USB-háttértár nem adható át a Linux vendégnek,
+> ezért ezt a funkciót valódi gépen lehet kipróbálni.
 
 - Támogatott fájlok: PDF, TXT, MD, DOC/DOCX/ODT/RTF, XLS/XLSX/ODS/CSV,
   PPT/PPTX/ODP, MP4/M4V/WEBM/MKV/MOV/AVI/OGV, MP3/WAV/M4A,
@@ -407,7 +432,8 @@ sudo systemctl disable --now kiosk-docs.path
 ```
 
 Ezután a beérkező fájlok megvárják a **Beérkezők feldolgozása** gombot.
-Az USB-import továbbra is azonnal feldolgoz.
+Az automatikus (auto módú) USB-import és a tallózó „Kijelöltek bemásolása”
+gombja továbbra is azonnal feldolgoz.
 
 A feldolgozás maximális fájlmérete 2 GB; a törlés a `/srv/kiosk/docs`
 fájlt és a hozzá tartozó feldolgozott eredetit is eltávolítja, majd

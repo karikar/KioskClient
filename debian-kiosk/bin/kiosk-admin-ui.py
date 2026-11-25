@@ -63,6 +63,22 @@ TEST_CONFIG = os.environ.get("KIOSK_ADMIN_TEST_CONFIG", "")
 TEST_SAVE = os.environ.get("KIOSK_ADMIN_TEST_SAVE", "")
 TEST_DISCOVER = os.environ.get("KIOSK_ADMIN_TEST_DISCOVER_FILE", "")
 TEST_SKIP_POWER = os.environ.get("KIOSK_ADMIN_TEST_SKIP_POWER") == "1"
+USB_ROOT = os.environ.get("USB_MOUNT_ROOT", "/run/media/kiosk-usb")
+USB_MODE_FILE = os.environ.get("KIOSK_USB_MODE_FILE", "/var/lib/kiosk/state/usb-import-mode")
+KIOSK_CONF_FILE = os.environ.get("KIOSK_CONF", "/etc/kiosk/kiosk.conf")
+USB_MAX_DEPTH = 4
+USB_MAX_FILES = 3000
+USB_MAX_FILE_BYTES = 2048 * 1024 * 1024
+USB_EXTENSIONS = {
+    ".pdf", ".txt", ".md",
+    ".doc", ".docx", ".odt", ".rtf",
+    ".xls", ".xlsx", ".ods", ".csv",
+    ".ppt", ".pptx", ".odp",
+    ".mp4", ".m4v", ".webm", ".mkv", ".mov", ".avi", ".ogv",
+    ".mp3", ".wav", ".m4a",
+    ".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg", ".bmp",
+}
+TEST_USB_NO_MOUNTCHECK = os.environ.get("KIOSK_ADMIN_TEST_USB_NO_MOUNTCHECK") == "1"
 UPDATE_SCRIPT = os.environ.get("KIOSK_UPDATE_SCRIPT", "/usr/local/bin/kiosk-update.sh")
 UPDATE_EXIT_NEWER = 10
 TEST_SKIP_UPDATE = os.environ.get("KIOSK_ADMIN_TEST_SKIP_UPDATE") == "1"
@@ -981,6 +997,212 @@ def power_action(action):
         raise AdminError("A művelet nem sikerült: %s" % (detail[-200:] or "ismeretlen hiba"))
 
 
+# --- USB tallózó -------------------------------------------------------------
+# Kézi módban a kiosk-usb-import.sh az USB-t csak olvashatóan csatolja a
+# USB_ROOT/<eszköz> alá, és mellé írja a .<eszköz>.json leírót. Innen lehet
+# kiválasztani, mi kerüljön az inboxba.
+
+def usb_mode():
+    try:
+        with open(USB_MODE_FILE, "r", encoding="utf-8") as handle:
+            value = handle.read().strip()
+        if value in ("auto", "manual"):
+            return value
+    except OSError:
+        pass
+    try:
+        with open(KIOSK_CONF_FILE, "r", encoding="utf-8") as handle:
+            for line in handle:
+                match = re.match(r"^USB_IMPORT_MODE=['\"]?(auto|manual)['\"]?\s*$", line.strip())
+                if match:
+                    return match.group(1)
+    except OSError:
+        pass
+    return "manual"
+
+
+def set_usb_mode(value):
+    if value not in ("auto", "manual"):
+        raise AdminError("Érvénytelen mód.")
+    directory = os.path.dirname(USB_MODE_FILE)
+    if directory:
+        os.makedirs(directory, exist_ok=True)
+    tmp = USB_MODE_FILE + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as handle:
+        handle.write(value + "\n")
+    os.replace(tmp, USB_MODE_FILE)
+    return value
+
+
+def usb_valid_id(value):
+    return bool(re.match(r"^[A-Za-z0-9_-]{1,32}$", str(value or "")))
+
+
+def usb_mountpoint(dev_id):
+    if not usb_valid_id(dev_id):
+        raise AdminError("Érvénytelen USB eszköz.")
+    path = os.path.join(USB_ROOT, dev_id)
+    if not os.path.isdir(path):
+        raise AdminError("Az USB eszköz már nincs csatolva.")
+    if not TEST_USB_NO_MOUNTCHECK and not os.path.ismount(path):
+        raise AdminError("Az USB eszköz már nincs csatolva.")
+    return os.path.realpath(path)
+
+
+def usb_devices():
+    devices = []
+    try:
+        names = sorted(os.listdir(USB_ROOT))
+    except OSError:
+        return devices
+    for name in names:
+        if name.startswith(".") or name.startswith("auto.") or not usb_valid_id(name):
+            continue
+        path = os.path.join(USB_ROOT, name)
+        if not os.path.isdir(path):
+            continue
+        if not TEST_USB_NO_MOUNTCHECK and not os.path.ismount(path):
+            continue
+        info = {"id": name, "label": "", "fstype": "", "size": 0}
+        try:
+            with open(os.path.join(USB_ROOT, "." + name + ".json"), "r", encoding="utf-8") as handle:
+                meta = json.load(handle)
+            if isinstance(meta, dict):
+                info["label"] = str(meta.get("label", ""))[:64]
+                info["fstype"] = str(meta.get("fstype", ""))[:16]
+                info["size"] = int(meta.get("size", 0) or 0)
+        except (OSError, ValueError, TypeError):
+            pass
+        devices.append(info)
+    return devices
+
+
+def usb_files(dev_id):
+    """A támogatott fájlok listája (relatív útvonal, méret), linkek nélkül."""
+    root = usb_mountpoint(dev_id)
+    files = []
+    truncated = False
+    for current, dirs, names in os.walk(root, followlinks=False):
+        rel_dir = os.path.relpath(current, root)
+        depth = 0 if rel_dir == "." else rel_dir.count(os.sep) + 1
+        # rejtett és rendszerkönyvtárak kihagyása (pl. System Volume Information)
+        dirs[:] = sorted(
+            d for d in dirs
+            if not d.startswith(".") and d not in ("System Volume Information", "$RECYCLE.BIN")
+        )
+        if depth >= USB_MAX_DEPTH - 1:
+            dirs[:] = []
+        for name in sorted(names, key=str.lower):
+            if name.startswith("."):
+                continue
+            if os.path.splitext(name)[1].lower() not in USB_EXTENSIONS:
+                continue
+            path = os.path.join(current, name)
+            try:
+                if os.path.islink(path) or not os.path.isfile(path):
+                    continue
+                size = os.path.getsize(path)
+            except OSError:
+                continue
+            rel = os.path.relpath(path, root).replace(os.sep, "/")
+            files.append({"path": rel, "size": size, "too_big": size > USB_MAX_FILE_BYTES})
+            if len(files) >= USB_MAX_FILES:
+                truncated = True
+                break
+        if truncated:
+            break
+    return files, truncated
+
+
+def usb_resolve(root, rel):
+    """Relatív útvonal -> abszolút, csak a csatolási ponton belül, link nélkül."""
+    rel = str(rel or "").replace("\\", "/").strip()
+    if not rel or rel.startswith("/") or "\x00" in rel or len(rel) > 1024:
+        raise AdminError("Érvénytelen fájl: %s" % rel[:80])
+    parts = rel.split("/")
+    if any(part in ("", ".", "..") for part in parts):
+        raise AdminError("Érvénytelen fájl: %s" % rel[:80])
+    path = os.path.join(root, *parts)
+    real = os.path.realpath(path)
+    if not real.startswith(root + os.sep) or os.path.islink(path) or not os.path.isfile(real):
+        raise AdminError("A fájl nem található az USB-n: %s" % rel[:80])
+    if os.path.splitext(real)[1].lower() not in USB_EXTENSIONS:
+        raise AdminError("Nem támogatott fájltípus: %s" % rel[:80])
+    return real
+
+
+def usb_import(dev_id, selected):
+    root = usb_mountpoint(dev_id)
+    if not isinstance(selected, list) or not selected:
+        raise AdminError("Nincs kijelölt fájl.")
+    if len(selected) > USB_MAX_FILES:
+        raise AdminError("Túl sok kijelölt fájl.")
+    sources = [usb_resolve(root, rel) for rel in selected]
+    os.makedirs(INBOX_DIR, exist_ok=True)
+    try:
+        import pwd
+        owner = pwd.getpwnam(KIOSK_USER)
+    except Exception:  # noqa: BLE001
+        owner = None
+    copied, skipped = [], []
+    for src in sources:
+        name = docs_safe_name(os.path.basename(src))
+        if not name or os.path.getsize(src) > USB_MAX_FILE_BYTES:
+            skipped.append(os.path.basename(src))
+            continue
+        stem, ext = os.path.splitext(name)
+        target = os.path.join(INBOX_DIR, name)
+        counter = 1
+        while os.path.exists(target) and counter <= 1000:
+            target = os.path.join(INBOX_DIR, "%s-%d%s" % (stem, counter, ext))
+            counter += 1
+        tmp = os.path.join(INBOX_DIR, ".%s.part" % os.path.basename(target))
+        try:
+            shutil.copyfile(src, tmp)
+            os.chmod(tmp, 0o644)
+            if owner is not None:
+                try:
+                    os.chown(tmp, owner.pw_uid, owner.pw_gid)
+                except OSError:
+                    pass
+            os.replace(tmp, target)
+            copied.append(os.path.basename(target))
+        except OSError:
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
+            skipped.append(os.path.basename(src))
+    return copied, skipped
+
+
+def usb_eject(dev_id):
+    usb_mountpoint(dev_id)
+    if TEST_USB_NO_MOUNTCHECK:
+        return
+    # A systemd unit leállítása lefuttatja a kiosk-usb-import.sh --release-t,
+    # így a unit állapota is rendben marad.
+    unit = "kiosk-usb-import@%s.service" % dev_id
+    try:
+        subprocess.run(["systemctl", "stop", unit], capture_output=True, text=True, timeout=60)
+    except Exception:  # noqa: BLE001
+        pass
+    path = os.path.join(USB_ROOT, dev_id)
+    if os.path.ismount(path):
+        result = subprocess.run(["umount", path], capture_output=True, text=True, timeout=60)
+        if result.returncode != 0:
+            detail = (result.stderr or "").strip()
+            raise AdminError("A leválasztás nem sikerült: %s" % (detail[-200:] or "foglalt"))
+    try:
+        os.rmdir(path)
+    except OSError:
+        pass
+    try:
+        os.unlink(os.path.join(USB_ROOT, "." + dev_id + ".json"))
+    except OSError:
+        pass
+
+
 def update_action(action):
     """Programfrissítés: "check" = keresés, "start" = frissítés azonnal.
 
@@ -1075,6 +1297,42 @@ class Handler(BaseHTTPRequestHandler):
             return json.loads(self.rfile.read(length).decode("utf-8"))
         except Exception:  # noqa: BLE001
             return None
+
+    def _usb(self, data):
+        """USB tallózó: /usb/list, /usb/import, /usb/eject, /usb/mode (PIN után)."""
+        try:
+            if self.path == "/usb/mode":
+                set_usb_mode(str(data.get("mode", "")))
+            elif self.path == "/usb/eject":
+                usb_eject(str(data.get("device", "")))
+            elif self.path == "/usb/import":
+                copied, skipped = usb_import(str(data.get("device", "")), data.get("files"))
+                ok, detail = (True, "")
+                if copied:
+                    ok, detail = run_docs_script()
+                return self._json(
+                    200 if ok else 500,
+                    {
+                        "ok": ok,
+                        "copied": copied,
+                        "skipped": skipped,
+                        "error": "" if ok else "a fájlok bekerültek, de a feldolgozás nem sikerült: %s" % detail,
+                        "docs": docs_entries(),
+                    },
+                )
+        except AdminError as exc:
+            return self._json(400, {"ok": False, "error": str(exc)})
+        except OSError as exc:
+            return self._json(500, {"ok": False, "error": "USB hiba: %s" % exc})
+
+        # /usb/list (és a fenti műveletek után a friss állapot)
+        devices = usb_devices()
+        for device in devices:
+            try:
+                device["files"], device["truncated"] = usb_files(device["id"])
+            except AdminError:
+                device["files"], device["truncated"] = [], False
+        return self._json(200, {"ok": True, "mode": usb_mode(), "devices": devices})
 
     def _docs_upload(self):
         pin = str(self.headers.get("X-Kiosk-PIN", ""))
@@ -1237,6 +1495,7 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(403, {"ok": False, "error": "tiltott kérés"})
         if self.path not in (
             "/auth", "/config", "/save", "/power", "/update", "/unlock", "/lock", "/discover",
+            "/usb/list", "/usb/import", "/usb/eject", "/usb/mode",
             "/docs/list", "/docs/upload", "/docs/delete",
             "/docs/inbox", "/docs/process", "/docs/inbox/delete",
         ):
@@ -1431,6 +1690,9 @@ class Handler(BaseHTTPRequestHandler):
                     "config": normalized,
                 },
             )
+
+        if self.path.startswith("/usb/"):
+            return self._usb(data)
 
         if self.path == "/update":
             try:

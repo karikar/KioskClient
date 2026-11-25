@@ -61,6 +61,10 @@ ADMIN_UI_PORT=8878
 # --- dokumentumok -----------------------------------------------------------
 MAX_FILE_MB=2048
 USB_IMPORT=1
+# manual: bedugáskor az USB csak csatolódik, az admin felület "USB tallózó"
+#         kártyáján választod ki, mi kerüljön be (ajánlott)
+# auto:   minden támogatott fájl automatikusan bemásolódik
+USB_IMPORT_MODE=manual
 USB_MOUNT_ROOT=/run/media/kiosk-usb
 
 # --- egyéb ------------------------------------------------------------------
