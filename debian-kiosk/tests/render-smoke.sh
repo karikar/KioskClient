@@ -223,6 +223,9 @@ else
     echo "  FAIL render_all"
     fail=1
 fi
+check "programverzió a kezdőlap láblécében" \
+    "$(grep -o 'id="kiosk-version">verzió [^<]*' "$START_PAGE" | sed 's/.*verzió //')" \
+    "$(tr -d '[:space:]' <"$ROOT/VERSION")"
 
 POL="$TMP/policies/policies.json"
 check "policies létrejött" "$([ -s "$POL" ] && echo yes)" "yes"

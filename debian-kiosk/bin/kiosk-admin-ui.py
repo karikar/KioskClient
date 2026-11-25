@@ -37,6 +37,8 @@ ADMIN_HTML = os.environ.get("ADMIN_HTML_FILE", "/usr/share/kiosk/web/admin.html"
 UNLOCK_HTML = os.environ.get("UNLOCK_HTML_FILE", "/usr/share/kiosk/web/unlock.html")
 THEME_JS = os.environ.get("THEME_JS_FILE", "/usr/share/kiosk/web/theme.js")
 THEME_STATE = os.environ.get("KIOSK_THEME_FILE", "/var/lib/kiosk/state/theme")
+VERSION_FILE = os.environ.get("KIOSK_VERSION_FILE", "/usr/share/kiosk/VERSION")
+UPDATE_STATUS_FILE = os.environ.get("KIOSK_UPDATE_STATUS_FILE", "/var/lib/kiosk/state/update-status")
 RENDER = os.environ.get("KIOSK_RENDER", "/usr/local/bin/kiosk-render.sh")
 BYPASS_FILE = os.environ.get("KIOSK_BYPASS_FILE", "/run/kiosk/proxy-bypass")
 try:
@@ -616,6 +618,25 @@ def run_docs_script():
     return True, ""
 
 
+def version_snapshot():
+    """Telepített programverzió + az önfrissítő utolsó állapota."""
+    info = {"version": "", "latest": "", "result": "", "checked": ""}
+    try:
+        with open(VERSION_FILE, "r", encoding="utf-8") as handle:
+            info["version"] = handle.read().strip()[:32]
+    except OSError:
+        pass
+    try:
+        with open(UPDATE_STATUS_FILE, "r", encoding="utf-8") as handle:
+            for line in handle:
+                key, sep, value = line.strip().partition("=")
+                if sep and key in ("latest", "result", "checked"):
+                    info[key] = value[:64]
+    except OSError:
+        pass
+    return info
+
+
 def read_ui_theme():
     try:
         with open(THEME_STATE, "r", encoding="utf-8") as handle:
@@ -1140,6 +1161,9 @@ class Handler(BaseHTTPRequestHandler):
 
         if self.path == "/unlock-status":
             return self._json(200, dict({"ok": True}, **bypass_snapshot()))
+
+        if self.path == "/version":
+            return self._json(200, dict({"ok": True}, **version_snapshot()))
 
         return self._json(404, {"ok": False, "error": "ismeretlen végpont"})
 

@@ -573,13 +573,19 @@ step "Allowlist letöltése és a felület legyártása"
 systemd-tmpfiles --create /usr/lib/tmpfiles.d/kiosk.conf >/dev/null 2>&1 || true
 if /usr/local/bin/kiosk-sync.sh; then
     say "GitHub allowlist betöltve."
+elif [ -s "${KIOSK_HOME}/state/allowlist.json" ]; then
+    # Újratelepítés/frissítés: a korábbi, működő lista marad.
+    log "WARN" "A GitHub szinkron nem sikerült - a korábbi allowlist marad érvényben."
 else
     log "WARN" "Az első GitHub szinkron nem sikerült - a beépített minta listát használjuk."
     jq -f /usr/lib/kiosk/allowlist.jq "${SRC_DIR}/examples/allowlist.json" \
         >"${KIOSK_HOME}/state/allowlist.json"
     chown "${KIOSK_USER}:${KIOSK_USER}" "${KIOSK_HOME}/state/allowlist.json"
-    /usr/local/bin/kiosk-render.sh
 fi
+# Mindig újrarendereljük: a sync változatlan listánál nem renderel, de az új
+# programverzió (kezdőlap lábléc, sablonok) csak így kerül ki.
+KIOSK_NO_RELOAD=1 /usr/local/bin/kiosk-render.sh ||
+    log "WARN" "A felület újragenerálása nem sikerült."
 
 runuser -u "$KIOSK_USER" -- /usr/local/bin/kiosk-docs.sh >/dev/null 2>&1 || \
     log "WARN" "A dokumentumlista inicializálása nem sikerült."

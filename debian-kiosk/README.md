@@ -799,6 +799,11 @@ GitHub: v1.2.0 tag ──▶ release workflow ──▶ Release: debian-kiosk-1.
 - Alapból csak `.sha256`-tal ellátott csatolmányt fogad el
   (`UPDATE_REQUIRE_CHECKSUM=1`); a csatolmányokat a release workflow
   automatikusan elkészíti.
+- **Hol látszik a verzió:** a kezdőlap láblécében (`… · verzió 1.2.0`), az
+  admin felület fejlécében (a legújabb kiadással és a frissítés állapotával:
+  naprakész / frissítés elérhető / frissítve / hiba), valamint a
+  `kiosk-admin.sh status` és `kiosk-admin.sh version` kimenetében. Frissítés
+  után a kezdőlap azonnal újragenerálódik, így az új szám rögtön látszik.
 - A telepítés újraindítja a böngészőt (a getty-t). Ha ez nyitvatartásban
   zavaró, állíts be karbantartási ablakot: `UPDATE_WINDOW=02-05`
   (02:00–04:59); az ellenőrzés ettől még óránként fut.

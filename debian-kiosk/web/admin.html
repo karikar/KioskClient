@@ -492,6 +492,7 @@
       <div>
         <h1>Kiosk admin</h1>
         <p class="meta" id="meta">Allowlist betöltése…</p>
+        <p class="meta" id="version-info">Verzió: …</p>
       </div>
     </div>
     <div class="power-wrap">
@@ -933,7 +934,43 @@
     $('resolution').value = originalResolution;
   }
 
+  // Telepített programverzió és az önfrissítő utolsó állapota.
+  function loadVersion() {
+    var resultText = {
+      'up-to-date': 'naprakész',
+      'updated': 'frissítve',
+      'available': 'frissítés elérhető',
+      'waiting-window': 'frissítés a karbantartási ablakban',
+      'failed': 'a legutóbbi frissítés nem sikerült',
+      'skipped-failed': 'hibás kiadás kihagyva',
+      'network-error': 'a GitHub nem érhető el',
+      'auth-error': 'nincs hozzáférés a program-repóhoz',
+      'no-release': 'nincs kiadás',
+      'missing-asset': 'a kiadásból hiányzik a csomag',
+      'missing-checksum': 'a kiadásból hiányzik az ellenőrzőösszeg',
+      'checksum-mismatch': 'ellenőrzőösszeg-hiba'
+    };
+    fetch('/version', { cache: 'no-store' }).then(function (response) {
+      return response.json();
+    }).then(function (data) {
+      var text = 'Verzió: ' + (data.version || '?');
+      if (data.latest && data.latest !== data.version && data.result !== 'up-to-date') {
+        text += ' · legújabb kiadás: ' + data.latest;
+      }
+      if (data.result) {
+        text += ' · ' + (resultText[data.result] || data.result);
+      }
+      if (data.checked) {
+        text += ' (ellenőrizve: ' + data.checked + ')';
+      }
+      $('version-info').textContent = text;
+    }).catch(function () {
+      $('version-info').textContent = 'Verzió: nem olvasható';
+    });
+  }
+
   function loadConfig() {
+    loadVersion();
     setStatus('Allowlist betöltése…', '');
     api('/config').then(function (data) {
       var meta = data.meta || {};

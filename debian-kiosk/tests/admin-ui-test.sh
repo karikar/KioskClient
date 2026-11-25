@@ -54,12 +54,18 @@ cat >"$CONFIG" <<'JSON'
 }
 JSON
 
+printf '1.2.3\n' >"$TMP/VERSION"
+printf 'checked=2026-11-25 10:00:00\ninstalled=1.2.3\nlatest=1.3.0\nresult=available\n' \
+    >"$TMP/update-status"
+
 ADMIN_UI_PORT="$PORT" \
 ADMIN_PIN_FILE="$PIN_FILE" \
 ADMIN_HTML_FILE="$ROOT/web/admin.html" \
 UNLOCK_HTML_FILE="$ROOT/web/unlock.html" \
 THEME_JS_FILE="$ROOT/web/theme.js" \
 KIOSK_THEME_FILE="$TMP/theme" \
+KIOSK_VERSION_FILE="$TMP/VERSION" \
+KIOSK_UPDATE_STATUS_FILE="$TMP/update-status" \
 KIOSK_BYPASS_FILE="$BYPASS" \
 ADMIN_BYPASS_MINUTES=15 \
 KIOSK_ADMIN_TEST_CONFIG="$CONFIG" \
@@ -262,6 +268,15 @@ check "visszazárás 200" "$code" "200"
 check "bypass fájl törölve" "$([ -e "$BYPASS" ] && echo yes || echo no)" "no"
 curl -s -o "$TMP/status2.json" "http://127.0.0.1:${PORT}/unlock-status"
 check "státusz inaktív" "$(json "$TMP/status2.json" active)" "False"
+
+echo "5b) Programverzió (/version)"
+code="$(curl -s -o "$TMP/version.json" -w '%{http_code}' "http://127.0.0.1:${PORT}/version")"
+check "verzió 200" "$code" "200"
+check "telepített verzió" "$(json "$TMP/version.json" version)" "1.2.3"
+check "legújabb kiadás" "$(json "$TMP/version.json" latest)" "1.3.0"
+check "frissítés állapota" "$(json "$TMP/version.json" result)" "available"
+check "admin oldal mutatja a verziót" \
+    "$(grep -c 'id="version-info"' "$ROOT/web/admin.html")" "1"
 
 echo "5c) Visszazárás PIN nélkül"
 printf '{}\n' >"$TMP/lock-empty.json"

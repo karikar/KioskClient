@@ -82,7 +82,8 @@ EOF
 </main>
 <footer class="footer">
 EOF
-        printf '  %s &middot; %s\n' "$(html_escape "$site_name")" "$(date '+%Y-%m-%d')"
+        printf '  %s &middot; %s &middot; <span class="version" id="kiosk-version">verzió %s</span>\n' \
+            "$(html_escape "$site_name")" "$(date '+%Y-%m-%d')" "$(html_escape "${KIOSK_VERSION:-?}")"
         cat <<'EOF'
 </footer>
 <script src="clock.js"></script>
