@@ -1,0 +1,12 @@
+[Unit]
+Description=Kiosk program új verziójának figyelése (GitHub Releases)
+
+[Timer]
+OnBootSec=10min
+OnUnitActiveSec=@UPDATE_INTERVAL_MINUTES@min
+RandomizedDelaySec=5min
+AccuracySec=1min
+Persistent=false
+
+[Install]
+WantedBy=timers.target

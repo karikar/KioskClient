@@ -1,0 +1,13 @@
+[Unit]
+Description=Kiosk program önfrissítés (GitHub Releases)
+Documentation=file:/usr/share/doc/debian-kiosk/README.md
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/kiosk-update.sh
+Nice=10
+IOSchedulingClass=idle
+# A telepítő apt-get-et is futtat; ez lassú hálózaton eltarthat.
+TimeoutStartSec=45min

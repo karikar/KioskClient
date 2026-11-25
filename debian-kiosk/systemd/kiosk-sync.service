@@ -1,0 +1,12 @@
+[Unit]
+Description=Kiosk allowlist szinkronizálás (GitHub)
+Documentation=file:/usr/share/doc/debian-kiosk/README.md
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/kiosk-sync.sh
+Nice=10
+IOSchedulingClass=idle
+TimeoutStartSec=180

@@ -1,0 +1,38 @@
+{
+  "start_url": "https://www.szerencsejatek.hu/",
+  "allowed_domains": [
+    "https://szerencsejatek.hu/",
+    "https://eto.szerencsejatek.hu/",
+    "https://www.tippmix.hu/",
+    "https://www.tippmixpro.hu/",
+    "https://bet.szerencsejatek.hu/edzok-ligaja-archiv",
+    "https://lovifogadas.hu/",
+    "https://kincsempark.hu/",
+    "http://schedulerzrh.aitcloud.de/retail_scheduler/display/index/schedule:13a92cec0a3b58c3944f2e4b0f2c1ef6",
+    "https://bet.szerencsejatek.hu/nyeremenyjegyzek",
+    "https://jatekostajekoztatok.szrt.hu/partner/index.html",
+    "https://bet.szerencsejatek.hu/dokumentumok",
+    "https://www.hasznaltauto.hu/",
+    "https://www.teletext.hu/",
+    "http://privatelelmiszer.hu/",
+    "https://v2.otr.hu/index.php?route=account/login"
+  ],
+  "allowed_prefixes": [
+    "https://szerencsejatek.hu/",
+    "https://eto.szerencsejatek.hu/",
+    "https://www.tippmix.hu/",
+    "https://www.tippmixpro.hu/",
+    "https://bet.szerencsejatek.hu/edzok-ligaja-archiv",
+    "https://lovifogadas.hu/",
+    "https://kincsempark.hu/",
+    "http://schedulerzrh.aitcloud.de/retail_scheduler/display/index/schedule:13a92cec0a3b58c3944f2e4b0f2c1ef6",
+    "https://bet.szerencsejatek.hu/nyeremenyjegyzek",
+    "https://jatekostajekoztatok.szrt.hu/partner/index.html",
+    "https://bet.szerencsejatek.hu/dokumentumok",
+    "https://www.hasznaltauto.hu/",
+    "https://www.teletext.hu/",
+    "http://privatelelmiszer.hu/",
+    "https://v2.otr.hu/index.php?route=account/login"
+  ],
+  "refresh_interval_seconds": 300
+}

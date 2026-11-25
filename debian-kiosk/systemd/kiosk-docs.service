@@ -1,0 +1,15 @@
+[Unit]
+Description=Kiosk dokumentum feldolgozás (Office -> PDF, videó, PDF)
+After=local-fs.target
+
+[Service]
+Type=oneshot
+User=@KIOSK_USER@
+Environment=HOME=@KIOSK_HOME@
+ExecStart=/usr/local/bin/kiosk-docs.sh
+Nice=10
+IOSchedulingClass=idle
+TimeoutStartSec=1800
+
+[Install]
+WantedBy=multi-user.target

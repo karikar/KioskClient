@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Szabad böngészés</title>
+<script src="/theme.js"></script>
+<style>
+  :root {
+    --text: #0e1a2f;
+    --muted: #3f4f6b;
+    --border: #d5dfec;
+    --link: #0b57d0;
+    --link-hover: #0842a0;
+    --danger: #b3261e;
+    --ok: #146c43;
+    --ok-bg: #e8f5ee;
+  }
+  * { box-sizing: border-box; }
+  html, body { min-height: 100%; }
+  body {
+    margin: 0;
+    padding: 22px 24px;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    background: #fff;
+    color: var(--text);
+    font-family: "DejaVu Sans", "Liberation Sans", system-ui, "Segoe UI", Arial, sans-serif;
+    font-size: 15px;
+    line-height: 1.4;
+  }
+  h1 { margin: 0 0 6px; font-size: 22px; }
+  p { margin: 0 0 14px; color: var(--muted); }
+  .pin-row { display: flex; gap: 8px; }
+  input {
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: 46px;
+    padding: 9px 12px;
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    background: #fff;
+    color: var(--text);
+    font: inherit;
+    font-size: 20px;
+    letter-spacing: 5px;
+    text-align: center;
+  }
+  input:focus { outline: 3px solid rgba(11, 87, 208, .3); border-color: var(--link); }
+  button {
+    min-height: 46px;
+    padding: 9px 16px;
+    border-radius: 9px;
+    font: inherit;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  button.primary { border: 1px solid var(--link); background: var(--link); color: #fff; }
+  button.primary:hover { background: var(--link-hover); }
+  button.primary:disabled { opacity: .6; cursor: default; }
+  button.secondary { border: 1px solid var(--border); background: #fff; color: var(--link); }
+  button.secondary:hover { background: #eef3fb; }
+  .error { min-height: 20px; margin: 10px 0 0; color: var(--danger); font-size: 13px; }
+  .ok {
+    margin: 12px 0;
+    padding: 12px 14px;
+    border: 1px solid #b7dfc8;
+    border-radius: 10px;
+    background: var(--ok-bg);
+    color: var(--ok);
+  }
+  .hint { font-size: 12px; margin-top: 12px; color: var(--muted); }
+  .actions { display: flex; gap: 8px; margin-top: 12px; }
+  [hidden] { display: none !important; }
+
+  html[data-theme="dark"] {
+    color-scheme: dark;
+    --text: #eaf1fb;
+    --muted: #a9b8cf;
+    --border: #2b3a55;
+    --link: #8ab4ff;
+    --link-hover: #b7d0ff;
+    --danger: #ffb4ab;
+    --ok: #7ee2a8;
+    --ok-bg: #0f2a1d;
+  }
+  html[data-theme="dark"] body { background: #0b1220; }
+  html[data-theme="dark"] input,
+  html[data-theme="dark"] button.secondary {
+    background: #131e32;
+    color: var(--text);
+    border-color: var(--border-strong, #52688a);
+  }
+  html[data-theme="dark"] button.secondary:hover { background: #1d2b44; }
+  html[data-theme="dark"] .ok { border-color: #2f6b4a; }
+</style>
+</head>
+<body>
+<h1>Szabad böngészés</h1>
+<p id="intro">Add meg a PIN-kódot, és a proxy ideiglenesen minden oldalt enged.</p>
+
+<form id="form" autocomplete="off">
+  <div class="pin-row">
+    <input id="pin" type="password" inputmode="numeric" pattern="[0-9]*"
+           maxlength="8" placeholder="PIN" aria-label="PIN" required>
+    <button class="primary" type="submit" id="submit">Feloldás</button>
+  </div>
+</form>
+<p class="error" id="error" role="alert"></p>
+
+<div class="ok" id="success" hidden></div>
+<div class="actions" id="actions" hidden>
+  <button class="primary" type="button" id="lock" hidden>Visszazárás</button>
+  <button class="secondary" type="button" id="cancel">Bezárás</button>
+</div>
+
+<p class="hint" id="hint">A feloldás után a böngészés a beállított ideig szabad; utána a proxy automatikusan visszazár.</p>
+
+<script>
+(function () {
+  'use strict';
+  var embedded = window.parent !== window;
+  var form = document.getElementById('form');
+  var pin = document.getElementById('pin');
+  var error = document.getElementById('error');
+  var success = document.getElementById('success');
+  var actions = document.getElementById('actions');
+  var intro = document.getElementById('intro');
+  var hint = document.getElementById('hint');
+  var lockBtn = document.getElementById('lock');
+  var cancelBtn = document.getElementById('cancel');
+  var params = new URLSearchParams(window.location.search);
+  var lockMode = params.has('lock');
+  var target = params.get('target') || '';
+
+  function targetValid(value) {
+    return /^https?:\/\//i.test(String(value || ''));
+  }
+
+  function post(data) {
+    if (embedded) {
+      try { window.parent.postMessage(data, '*'); } catch (e) {}
+    }
+  }
+
+  function showActive(minutes, remaining) {
+    form.hidden = true;
+    intro.hidden = true;
+    success.hidden = false;
+    actions.hidden = false;
+    lockBtn.hidden = false;
+    cancelBtn.textContent = embedded ? 'Bezárás' : 'Vissza a kezdőlapra';
+    var left = Math.max(1, Math.ceil((remaining || 0) / 60));
+    success.textContent = 'A szabad böngészés aktív' +
+      (minutes ? ' (' + minutes + ' perc)' : '') +
+      '. Hátralévő idő: kb. ' + left + ' perc.';
+    hint.hidden = true;
+    if (targetValid(target)) {
+      if (embedded) {
+        post({ type: 'kiosk-unlock', ok: true, minutes: minutes, remaining: remaining });
+      } else {
+        window.location.href = target;
+      }
+    }
+  }
+
+  function showLocked() {
+    form.hidden = true;
+    intro.hidden = true;
+    success.hidden = false;
+    actions.hidden = false;
+    lockBtn.hidden = true;
+    cancelBtn.textContent = embedded ? 'Bezárás' : 'Vissza a kezdőlapra';
+    success.textContent = 'A böngészés vissza van zárva.';
+    hint.hidden = true;
+  }
+
+  function lockNow() {
+    error.textContent = '';
+    fetch('/lock', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Kiosk-Admin': '1'
+      },
+      body: '{}'
+    }).then(function (response) {
+      return response.json().catch(function () { return {}; }).then(function (data) {
+        if (!response.ok || data.ok === false) {
+          throw new Error(data.error || ('HTTP ' + response.status));
+        }
+        return data;
+      });
+    }).then(function () {
+      showLocked();
+      post({ type: 'kiosk-lock', ok: true });
+    }).catch(function (err) {
+      error.textContent = err.message;
+      success.hidden = false;
+      success.textContent = 'A lezárás nem sikerült.';
+      actions.hidden = false;
+      lockBtn.hidden = true;
+      cancelBtn.textContent = embedded ? 'Bezárás' : 'Vissza a kezdőlapra';
+    });
+  }
+
+  function close() {
+    post({ type: 'kiosk-unlock', cancel: true });
+    if (!embedded) {
+      if (window.history.length > 1) window.history.back();
+      else window.location.href = '/';
+    }
+  }
+
+  cancelBtn.addEventListener('click', close);
+  lockBtn.addEventListener('click', lockNow);
+  document.addEventListener('keydown', function (event) {
+    if (event.key === 'Escape') close();
+  });
+
+  form.addEventListener('submit', function (event) {
+    event.preventDefault();
+    var value = pin.value.trim();
+    if (!value) return;
+    error.textContent = '';
+    var button = document.getElementById('submit');
+    button.disabled = true;
+    fetch('/unlock', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Kiosk-Admin': '1'
+      },
+      body: JSON.stringify({ pin: value })
+    }).then(function (response) {
+      return response.json().catch(function () { return {}; }).then(function (data) {
+        if (!response.ok || data.ok === false) {
+          throw new Error(data.error || ('HTTP ' + response.status));
+        }
+        return data;
+      });
+    }).then(function (data) {
+      showActive(data.minutes, data.remaining);
+      post({
+        type: 'kiosk-unlock',
+        ok: true,
+        minutes: data.minutes,
+        remaining: data.remaining
+      });
+    }).catch(function (err) {
+      error.textContent = err.message;
+      button.disabled = false;
+      pin.select();
+    });
+  });
+
+  if (lockMode) {
+    form.hidden = true;
+    intro.hidden = true;
+    hint.hidden = true;
+    success.hidden = false;
+    success.textContent = 'Böngészés lezárása…';
+    lockNow();
+  } else {
+    fetch('/unlock-status').then(function (response) {
+      return response.json();
+    }).then(function (data) {
+      if (data && data.active) {
+        showActive(data.minutes, data.remaining);
+      }
+    }).catch(function () {});
+    pin.focus();
+  }
+})();
+</script>
+</body>
+</html>

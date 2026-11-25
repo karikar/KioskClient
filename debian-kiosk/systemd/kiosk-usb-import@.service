@@ -1,0 +1,12 @@
+[Unit]
+Description=Kiosk USB import (%i)
+BindsTo=dev-%i.device
+After=dev-%i.device
+ConditionPathExists=/dev/%i
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/kiosk-usb-import.sh /dev/%i
+TimeoutStartSec=1800
+Nice=10
+IOSchedulingClass=idle

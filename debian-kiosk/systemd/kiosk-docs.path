@@ -1,0 +1,10 @@
+[Unit]
+Description=Kiosk inbox könyvtár figyelése
+
+[Path]
+PathChanged=@INBOX_DIR@
+PathModified=@INBOX_DIR@
+Unit=kiosk-docs.service
+
+[Install]
+WantedBy=paths.target

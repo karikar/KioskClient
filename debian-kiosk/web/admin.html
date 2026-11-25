@@ -1,0 +1,1428 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kiosk admin</title>
+<script src="/theme.js"></script>
+<style>
+  :root {
+    --bg: #f4f7fb;
+    --card: #ffffff;
+    --text: #0e1a2f;
+    --muted: #3f4f6b;
+    --border: #d5dfec;
+    --border-strong: #b9c8dc;
+    --link: #0b57d0;
+    --link-hover: #0842a0;
+    --danger: #b3261e;
+    --danger-bg: #fdecea;
+    --ok: #146c43;
+    --ok-bg: #e8f5ee;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { min-height: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "DejaVu Sans", "Liberation Sans", system-ui, "Segoe UI", Arial, sans-serif;
+    font-size: 16px;
+    line-height: 1.4;
+  }
+  h1, h2 { margin: 0; }
+  h1 { font-size: 26px; }
+  h2 { font-size: 19px; }
+  .muted, .hint { color: var(--muted); }
+  .hint { font-size: 14px; margin: 8px 0 0; }
+
+  /* --- PIN kapu ---------------------------------------------------------- */
+  .gate {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: rgba(14, 26, 47, .55);
+    backdrop-filter: blur(3px);
+  }
+  .gate-card {
+    width: min(420px, 100%);
+    padding: 28px 30px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    box-shadow: 0 18px 50px rgba(14, 26, 47, .25);
+  }
+  .gate-card h1 { font-size: 24px; margin-bottom: 6px; }
+  .gate-card p { margin: 0 0 16px; color: var(--muted); }
+  .gate-card input {
+    width: 100%;
+    min-height: 50px;
+    padding: 10px 14px;
+    margin-bottom: 12px;
+    border: 1px solid var(--border-strong);
+    border-radius: 10px;
+    background: #fff;
+    color: var(--text);
+    font: inherit;
+    font-size: 22px;
+    letter-spacing: 6px;
+    text-align: center;
+  }
+  .gate-card input:focus { outline: 3px solid rgba(11, 87, 208, .35); border-color: var(--link); }
+  .gate-error { min-height: 22px; margin: 10px 0 0; color: var(--danger); font-size: 14px; }
+
+  /* --- fejléc ------------------------------------------------------------ */
+  .top {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 16px 28px;
+    background: #fff;
+    border-bottom: 1px solid var(--border);
+    box-shadow: 0 2px 10px rgba(14, 26, 47, .05);
+  }
+  .meta { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
+  .top-left { display: flex; align-items: center; gap: 14px; min-width: 0; }
+  .theme-toggle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    width: 46px;
+    height: 46px;
+    padding: 0;
+    border: 1px solid var(--border-strong);
+    border-radius: 50%;
+    background: #fff;
+    color: var(--text);
+    font: inherit;
+    font-size: 20px;
+    line-height: 1;
+    cursor: pointer;
+  }
+  .theme-toggle:hover { background: #eef3fb; }
+  .theme-toggle:focus-visible { outline: 3px solid rgba(11, 87, 208, .35); outline-offset: 2px; }
+  .power-wrap { position: relative; }
+  .power {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 46px;
+    height: 46px;
+    border: 1px solid var(--border-strong);
+    border-radius: 50%;
+    background: #fff;
+    color: var(--text);
+    cursor: pointer;
+  }
+  .power:hover { background: #eef3fb; }
+  .power svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; }
+  .menu {
+    position: absolute;
+    top: 54px;
+    right: 0;
+    min-width: 190px;
+    padding: 6px;
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: 0 14px 34px rgba(14, 26, 47, .18);
+  }
+  .menu button {
+    display: block;
+    width: 100%;
+    padding: 11px 12px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+  .menu button:hover { background: #eef3fb; }
+  .menu button[data-action="poweroff"] { color: var(--danger); }
+
+  /* --- tartalom ---------------------------------------------------------- */
+  main { max-width: 1120px; margin: 0 auto; padding: 24px 20px 60px; }
+  .card {
+    margin-bottom: 18px;
+    padding: 20px 22px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    box-shadow: 0 1px 2px rgba(14, 26, 47, .05);
+  }
+  .card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .field > span { font-weight: 700; font-size: 14px; }
+  input[type="text"], input[type="number"], input[type="url"] {
+    width: 100%;
+    min-height: 42px;
+    padding: 8px 12px;
+    border: 1px solid var(--border-strong);
+    border-radius: 9px;
+    background: #fff;
+    color: var(--text);
+    font: inherit;
+  }
+  input:focus { outline: 3px solid rgba(11, 87, 208, .3); outline-offset: 1px; border-color: var(--link); }
+  .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+
+  .table-wrap { overflow-x: auto; margin-top: 10px; }
+  table { width: 100%; border-collapse: collapse; min-width: 980px; }
+  th, td { padding: 8px 8px; text-align: left; vertical-align: middle; }
+  th { font-size: 13px; color: var(--muted); border-bottom: 1px solid var(--border); }
+  th.center { text-align: center; width: 100px; }
+  th.order-head { width: 110px; }
+  tbody tr { border-bottom: 1px solid #edf1f8; }
+  tbody tr:last-child { border-bottom: 0; }
+  tbody tr.dragging { opacity: .55; background: #eef3fb; }
+  th.center, td.center { text-align: center; }
+  td.w-44 { width: 44px; }
+  .order-cell { width: 110px; }
+  .order-wrap { display: inline-flex; align-items: center; gap: 8px; }
+  .site-num {
+    min-width: 22px;
+    color: var(--muted);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+  }
+  .drag-handle {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: #fff;
+    color: var(--muted);
+    cursor: grab;
+    touch-action: none;
+  }
+  .drag-handle:hover { background: #eef3fb; color: var(--link); }
+  .drag-handle:active { cursor: grabbing; }
+  .hamburger { display: flex; flex-direction: column; gap: 3px; }
+  .hamburger span { display: block; width: 16px; height: 2px; border-radius: 1px; background: currentColor; }
+  .check { width: 22px; height: 22px; accent-color: var(--link); cursor: pointer; }
+
+  .rows { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+  .row { display: flex; align-items: center; gap: 8px; }
+  .row input { flex: 1 1 auto; }
+  .row-num {
+    min-width: 22px;
+    color: var(--muted);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+  }
+  .url-cell { display: flex; align-items: center; gap: 6px; }
+  .url-cell input { flex: 1 1 auto; min-width: 0; }
+  .domain-scan {
+    flex: 0 0 auto;
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: #fff;
+    color: var(--link);
+    font-size: 16px;
+    cursor: pointer;
+  }
+  .domain-scan:hover { background: #eef3fb; }
+  .domain-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 1200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 18px;
+    background: rgba(14, 26, 47, .55);
+    backdrop-filter: blur(3px);
+  }
+  .domain-dialog {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    width: min(680px, 100%);
+    max-height: 88vh;
+    padding: 22px 24px;
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    box-shadow: 0 18px 50px rgba(14, 26, 47, .28);
+  }
+  .domain-dialog h2 { margin-right: 34px; }
+  .domain-list {
+    flex: 1 1 auto;
+    min-height: 80px;
+    max-height: 52vh;
+    margin: 12px 0;
+    overflow-y: auto;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+  }
+  .domain-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 12px;
+    border-bottom: 1px solid #edf1f8;
+    cursor: pointer;
+  }
+  .domain-row:last-child { border-bottom: 0; }
+  .domain-row:hover { background: #f7f9fd; }
+  .domain-row input { width: 18px; height: 18px; accent-color: var(--link); flex: 0 0 auto; }
+  .domain-name { font-family: "DejaVu Sans Mono", monospace; font-size: 13px; word-break: break-all; }
+  .domain-note { color: var(--muted); font-size: 12px; }
+  .domain-count { margin-left: auto; color: var(--muted); font-size: 12px; white-space: nowrap; }
+  .domain-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 4px; }
+  .domain-close {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 34px;
+    height: 34px;
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    background: #fff;
+    color: var(--text);
+    font-size: 20px;
+    line-height: 1;
+    cursor: pointer;
+  }
+  .domain-close:hover { background: #eef3fb; }
+  .docs-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin: 10px 0;
+  }
+  .docs-toolbar input[type="text"] { flex: 1 1 260px; min-width: 0; }
+  .docs-list { margin-top: 8px; border-top: 1px solid var(--border); }
+  .docs-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 2px;
+    border-bottom: 1px solid #edf1f8;
+  }
+  .docs-name {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .docs-meta { color: var(--muted); font-size: 12px; white-space: nowrap; }
+  .docs-del {
+    padding: 4px 9px;
+    border: 1px solid #e2b4b4;
+    border-radius: 7px;
+    background: #fff5f5;
+    color: #a11;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .docs-del:hover { background: #ffe8e8; }
+  button {
+    font: inherit;
+    cursor: pointer;
+  }
+  button.primary {
+    min-height: 46px;
+    padding: 10px 22px;
+    border: 1px solid var(--link);
+    border-radius: 10px;
+    background: var(--link);
+    color: #fff;
+    font-weight: 700;
+  }
+  button.primary:hover { background: var(--link-hover); }
+  button.primary:disabled { opacity: .6; cursor: default; }
+  button.secondary {
+    min-height: 38px;
+    padding: 7px 14px;
+    border: 1px solid var(--border-strong);
+    border-radius: 9px;
+    background: #fff;
+    color: var(--link);
+    font-weight: 700;
+  }
+  button.secondary:hover { background: #eef3fb; }
+  button.del {
+    min-width: 36px;
+    min-height: 36px;
+    border: 1px solid #e7b9b5;
+    border-radius: 8px;
+    background: var(--danger-bg);
+    color: var(--danger);
+    font-size: 18px;
+    line-height: 1;
+  }
+  button.del:hover { background: #f9dcd8; }
+
+  .savebar {
+    position: sticky;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 0;
+    background: linear-gradient(to top, var(--bg) 70%, rgba(244, 247, 251, 0));
+  }
+  .status {
+    margin-bottom: 14px;
+    padding: 12px 14px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: #fff;
+  }
+  .status.ok { border-color: #b7dfc8; background: var(--ok-bg); color: var(--ok); }
+  .status.err { border-color: #efc2bd; background: var(--danger-bg); color: var(--danger); }
+
+  /* --- sötét téma -------------------------------------------------------- */
+  html[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #0b1220;
+    --card: #131e32;
+    --text: #eaf1fb;
+    --muted: #a9b8cf;
+    --border: #2b3a55;
+    --border-strong: #52688a;
+    --link: #8ab4ff;
+    --link-hover: #b7d0ff;
+    --danger: #ffb4ab;
+    --danger-bg: #2a1514;
+    --ok: #7ee2a8;
+    --ok-bg: #0f2a1d;
+  }
+  html[data-theme="dark"] body { background: var(--bg); color: var(--text); }
+  html[data-theme="dark"] .top,
+  html[data-theme="dark"] .card,
+  html[data-theme="dark"] .gate-card,
+  html[data-theme="dark"] .savebar,
+  html[data-theme="dark"] .domain-dialog,
+  html[data-theme="dark"] .status,
+  html[data-theme="dark"] .power,
+  html[data-theme="dark"] .menu,
+  html[data-theme="dark"] .domain-close,
+  html[data-theme="dark"] .theme-toggle {
+    background: var(--card);
+    color: var(--text);
+  }
+  html[data-theme="dark"] input[type="text"],
+  html[data-theme="dark"] input[type="url"],
+  html[data-theme="dark"] input[type="number"],
+  html[data-theme="dark"] input[type="password"],
+  html[data-theme="dark"] textarea,
+  html[data-theme="dark"] select {
+    background: #0f1a2c;
+    color: var(--text);
+    border-color: var(--border-strong);
+  }
+  html[data-theme="dark"] .power:hover,
+  html[data-theme="dark"] .theme-toggle:hover,
+  html[data-theme="dark"] .secondary:hover,
+  html[data-theme="dark"] .domain-row:hover,
+  html[data-theme="dark"] .domain-close:hover {
+    background: #1d2b44;
+  }
+  html[data-theme="dark"] .domain-list,
+  html[data-theme="dark"] .domain-row,
+  html[data-theme="dark"] .docs-row {
+    border-color: var(--border);
+  }
+  html[data-theme="dark"] .domain-row:hover { background: #18243b; }
+  html[data-theme="dark"] .status.ok { border-color: var(--ok); }
+  html[data-theme="dark"] .status.err { border-color: #6b3a36; }
+  html[data-theme="dark"] button.secondary {
+    background: var(--card);
+    color: var(--link);
+  }
+  html[data-theme="dark"] button.del {
+    border-color: #6b3a36;
+    background: #2a1514;
+    color: #ffb4ab;
+  }
+
+  @media (max-width: 720px) {
+    .top { padding: 12px 16px; }
+    h1 { font-size: 21px; }
+    main { padding: 16px 12px 40px; }
+    .card { padding: 16px; }
+    .savebar { flex-wrap: wrap; }
+  }
+</style>
+</head>
+<body>
+
+<div class="gate" id="gate">
+  <form class="gate-card" id="gate-form" autocomplete="off">
+    <h1>Admin belépés</h1>
+    <p>Add meg a PIN-kódot az allowlist szerkesztéséhez.</p>
+    <input id="pin" type="password" inputmode="numeric" pattern="[0-9]*"
+           maxlength="8" placeholder="PIN" aria-label="PIN" required>
+    <button class="primary" type="submit" style="width:100%">Belépés</button>
+    <p class="gate-error" id="gate-error" role="alert"></p>
+  </form>
+</div>
+
+<div class="app" id="app" hidden>
+  <header class="top">
+    <div class="top-left">
+      <button class="theme-toggle" id="theme-toggle" type="button"
+              title="Sötét téma" aria-label="Sötét téma" aria-pressed="false">🌙</button>
+      <div>
+        <h1>Kiosk admin</h1>
+        <p class="meta" id="meta">Allowlist betöltése…</p>
+      </div>
+    </div>
+    <div class="power-wrap">
+      <button class="power" id="power-btn" type="button" title="Kikapcsolás / újraindítás" aria-label="Kikapcsolás / újraindítás">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12 3v9"></path>
+          <path d="M6.2 6.5a8 8 0 1 0 11.6 0"></path>
+        </svg>
+      </button>
+      <div class="menu" id="power-menu" hidden>
+        <button type="button" data-action="reboot">Újraindítás</button>
+        <button type="button" data-action="poweroff">Kikapcsolás</button>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <div class="status" id="status" role="status" hidden></div>
+
+    <section class="card">
+      <h2>Kezdőoldal (start URL)</h2>
+      <p class="hint">A kiosk ezt az oldalt nyitja meg induláskor. Ha a domainje
+        az „Engedélyezve” pipa miatt tiltott, a kiosk a proxy hibaoldalát mutatja.</p>
+      <label class="field" style="margin-top:12px">
+        <span>Webcím</span>
+        <input id="start_url" type="text" inputmode="url" spellcheck="false"
+               placeholder="https://www.pelda.hu/">
+      </label>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <h2>Weboldalak</h2>
+        <button class="secondary" id="add-site" type="button">+ Új oldal</button>
+      </div>
+      <p class="hint">A <strong>Főoldalon</strong> pipa láthatóvá teszi az oldalt a kezdőlapon és a
+        könyvjelzők között. Az <strong>Engedélyezve</strong> pipa dönti el, hogy a proxy átengedi-e.
+        A kettő egymástól független: látható, de tiltott link is beállítható.</p>
+      <p class="hint">A proxy domain szinten szűr, ezért ha ugyanaz a domain más engedélyezett
+        oldalon vagy extra domainben is szerepel, a tiltás nem érvényesül.</p>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th class="order-head">Sorrend</th>
+              <th>Cím</th>
+              <th>Webcím</th>
+              <th class="center">Főoldalon</th>
+              <th class="center">Engedélyezve</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="sites"></tbody>
+        </table>
+      </div>
+      <p class="hint">A ☰ fogantyúval húzható a sorrend (egérrel vagy érintéssel);
+        a sorrend a kezdőlapon és a könyvjelzőkben is érvényesül. A start URL
+        a lista helyén marad, nem ugrik automatikusan az élre.</p>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <h2>Extra domainek</h2>
+        <button class="secondary" id="add-extra" type="button">+ Új domain</button>
+      </div>
+      <p class="hint">Olyan domainek (CDN, API), amelyek engedélyezettek, de nem jelennek meg a menüben.
+        Pl. <code>cdn.pelda.hu</code> vagy <code>*.pelda.hu</code>.</p>
+      <div class="rows" id="extra"></div>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <h2>Rejtett URL-ek</h2>
+        <button class="secondary" id="add-hidden" type="button">+ Új rejtett URL</button>
+      </div>
+      <p class="hint">Csak engedélyezett címek, amelyek a menüben nem látszanak. A kipipált
+        weboldalak is ide kerülnek mentéskor (címükkel együtt).</p>
+      <div class="rows" id="hidden"></div>
+    </section>
+
+    <section class="card" id="docs">
+      <div class="card-head">
+        <h2>Helyi dokumentumok</h2>
+        <button class="secondary" id="docs-refresh" type="button">Frissítés</button>
+      </div>
+      <p class="hint">A fájlt tedd a szerveroldali inboxba USB-ről vagy SSH-val
+        (<code>/srv/kiosk/inbox</code>), majd itt frissíts és dolgozd fel.
+        Az Office-fájlokból PDF készül.</p>
+      <div class="docs-toolbar">
+        <button class="secondary" id="docs-inbox-refresh" type="button">Beérkezők frissítése</button>
+        <button class="primary" id="docs-process" type="button">Beérkezők feldolgozása</button>
+      </div>
+      <p class="hint" id="docs-inbox-status"></p>
+      <div class="docs-list" id="docs-inbox-list"></div>
+
+      <div class="docs-toolbar" style="margin-top:16px">
+        <button class="secondary" id="docs-refresh" type="button">Dokumentumok frissítése</button>
+      </div>
+      <p class="hint" id="docs-status"></p>
+      <div class="docs-list" id="docs-list"></div>
+    </section>
+
+    <section class="card">
+      <h2>Beállítások</h2>
+      <div class="grid2" style="margin-top:12px">
+        <label class="field">
+          <span>Frissítés (másodperc)</span>
+          <input id="refresh" type="number" min="30" max="86400" step="30" value="300">
+        </label>
+        <label class="field">
+          <span>Felbontás</span>
+          <input id="resolution" type="text" inputmode="numeric" spellcheck="false"
+                 placeholder="1366x768">
+        </label>
+      </div>
+      <p class="hint">Felbontás: üres = automatikus. A kiosk a <code>wlr-randr</code>-ral próbálja
+        beállítani; hardver- és kijelzőfüggő.</p>
+    </section>
+
+    <div class="savebar">
+      <button class="primary" id="save" type="button">Mentés a GitHubra</button>
+      <span class="hint" id="save-note"></span>
+    </div>
+  </main>
+</div>
+
+<div class="domain-modal" id="domain-modal" hidden>
+  <div class="domain-dialog" role="dialog" aria-modal="true" aria-labelledby="domain-title">
+    <button class="domain-close" id="domain-close" type="button" aria-label="Bezárás">×</button>
+    <h2 id="domain-title">Külső domainek</h2>
+    <p class="hint" id="domain-intro">A weboldalhoz szükséges külső domainek.</p>
+    <div class="domain-list" id="domain-list"></div>
+    <p class="error" id="domain-error" role="alert"></p>
+    <div class="domain-actions">
+      <button class="primary" id="domain-add" type="button">Kijelöltek az Extra domainekhez</button>
+      <button class="secondary" id="domain-cancel" type="button">Mégse</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var pin = '';
+  var originalResolution = '';
+  var draggingRow = null;
+  var currentScanRow = null;
+  var $ = function (id) { return document.getElementById(id); };
+  var gate = $('gate');
+  var app = $('app');
+  var pinInput = $('pin');
+  var gateError = $('gate-error');
+  var statusEl = $('status');
+  var saveButton = $('save');
+  var powerMenu = $('power-menu');
+  var domainModal = $('domain-modal');
+  var domainTitle = $('domain-title');
+  var domainIntro = $('domain-intro');
+  var domainList = $('domain-list');
+  var domainError = $('domain-error');
+  var domainAdd = $('domain-add');
+  var domainClose = $('domain-close');
+  var domainCancel = $('domain-cancel');
+  var docsList = $('docs-list');
+  var docsInboxList = $('docs-inbox-list');
+  var docsInboxStatus = $('docs-inbox-status');
+  var docsInboxRefresh = $('docs-inbox-refresh');
+  var docsProcess = $('docs-process');
+  var docsRefresh = $('docs-refresh');
+  var docsStatus = $('docs-status');
+
+  function setStatus(text, kind) {
+    statusEl.hidden = !text;
+    statusEl.textContent = text || '';
+    statusEl.className = 'status' + (kind ? ' ' + kind : '');
+  }
+
+  function api(path, body) {
+    var payload = Object.assign({ pin: pin }, body || {});
+    return fetch(path, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Kiosk-Admin': '1'
+      },
+      body: JSON.stringify(payload)
+    }).then(function (response) {
+      return response.json().catch(function () { return {}; }).then(function (data) {
+        if (!response.ok || data.ok === false) {
+          throw new Error(data.error || ('HTTP ' + response.status));
+        }
+        return data;
+      });
+    });
+  }
+
+  function renumberSites() {
+    var rows = $('sites').querySelectorAll('tr');
+    Array.prototype.forEach.call(rows, function (tr, index) {
+      var num = tr.querySelector('.site-num');
+      if (num) num.textContent = String(index + 1);
+    });
+  }
+
+  function endDrag() {
+    if (!draggingRow) return;
+    draggingRow.classList.remove('dragging');
+    draggingRow = null;
+    document.removeEventListener('pointermove', onDragMove);
+    document.removeEventListener('pointerup', endDrag);
+    document.removeEventListener('pointercancel', endDrag);
+    renumberSites();
+  }
+
+  function onDragMove(event) {
+    if (!draggingRow) return;
+    event.preventDefault();
+    var y = event.clientY;
+    var rows = Array.prototype.slice.call($('sites').querySelectorAll('tr'));
+    var after = null;
+    var i;
+    for (i = 0; i < rows.length; i += 1) {
+      var row = rows[i];
+      if (row === draggingRow) continue;
+      var rect = row.getBoundingClientRect();
+      if (y < rect.top + rect.height / 2) {
+        after = row;
+        break;
+      }
+    }
+    if (after) {
+      if (draggingRow.nextElementSibling !== after) {
+        $('sites').insertBefore(draggingRow, after);
+      }
+    } else if ($('sites').lastElementChild !== draggingRow) {
+      $('sites').appendChild(draggingRow);
+    }
+    renumberSites();
+  }
+
+  function startDrag(event) {
+    var handle = event.currentTarget;
+    var tr = handle.closest('tr');
+    if (!tr) return;
+    if (event.button !== undefined && event.button !== 0) return;
+    event.preventDefault();
+    if (draggingRow) endDrag();
+    draggingRow = tr;
+    tr.classList.add('dragging');
+    document.addEventListener('pointermove', onDragMove, { passive: false });
+    document.addEventListener('pointerup', endDrag);
+    document.addEventListener('pointercancel', endDrag);
+  }
+
+  function moveRowByKey(event) {
+    var handle = event.currentTarget;
+    var tr = handle.closest('tr');
+    if (!tr) return;
+    if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return;
+    event.preventDefault();
+    if (event.key === 'ArrowUp') {
+      var prev = tr.previousElementSibling;
+      if (prev) tr.parentNode.insertBefore(tr, prev);
+    } else {
+      var next = tr.nextElementSibling;
+      if (next) tr.parentNode.insertBefore(next, tr);
+    }
+    renumberSites();
+    handle.focus();
+  }
+
+  function addSite(title, url, visible, allowed, focus, isNew) {
+    var tr = document.createElement('tr');
+
+    var orderCell = document.createElement('td');
+    orderCell.className = 'order-cell';
+    var orderWrap = document.createElement('span');
+    orderWrap.className = 'order-wrap';
+    var num = document.createElement('span');
+    num.className = 'site-num';
+    var handle = document.createElement('button');
+    handle.type = 'button';
+    handle.className = 'drag-handle';
+    handle.title = 'Húzd a sorrendezéshez';
+    handle.setAttribute('aria-label', 'Sorrend módosítása');
+    handle.innerHTML = '<span class="hamburger"><span></span><span></span><span></span></span>';
+    handle.addEventListener('pointerdown', startDrag);
+    handle.addEventListener('keydown', moveRowByKey);
+    orderWrap.appendChild(num);
+    orderWrap.appendChild(handle);
+    orderCell.appendChild(orderWrap);
+
+    var titleCell = document.createElement('td');
+    var titleInput = document.createElement('input');
+    titleInput.type = 'text';
+    titleInput.className = 'site-title';
+    titleInput.placeholder = 'Oldal neve';
+    titleInput.maxLength = 80;
+    titleInput.value = title || '';
+    titleCell.appendChild(titleInput);
+
+    var urlCell = document.createElement('td');
+    urlCell.className = 'url-cell';
+    var urlInput = document.createElement('input');
+    urlInput.type = 'text';
+    urlInput.className = 'site-url';
+    urlInput.inputMode = 'url';
+    urlInput.spellcheck = false;
+    urlInput.placeholder = 'https://pelda.hu/';
+    urlInput.value = url || '';
+    var scan = document.createElement('button');
+    scan.type = 'button';
+    scan.className = 'domain-scan';
+    scan.title = 'Külső domainek keresése';
+    scan.setAttribute('aria-label', 'Külső domainek keresése');
+    scan.textContent = '🔍';
+    scan.addEventListener('click', function () { scanSite(tr); });
+    urlInput.addEventListener('change', function () {
+      if (tr.dataset.isNew === '1' && /^https?:\/\//i.test(urlInput.value.trim())) {
+        tr.dataset.isNew = '0';
+        scanSite(tr);
+      }
+    });
+    urlCell.appendChild(urlInput);
+    urlCell.appendChild(scan);
+
+    var visCell = document.createElement('td');
+    visCell.className = 'center';
+    var checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.className = 'check site-visible';
+    checkbox.checked = !!visible;
+    visCell.appendChild(checkbox);
+
+    var allowedCell = document.createElement('td');
+    allowedCell.className = 'center';
+    var allowedBox = document.createElement('input');
+    allowedBox.type = 'checkbox';
+    allowedBox.className = 'check site-allowed';
+    allowedBox.checked = allowed !== false;
+    allowedCell.appendChild(allowedBox);
+
+    var delCell = document.createElement('td');
+    delCell.className = 'w-44';
+    var del = document.createElement('button');
+    del.type = 'button';
+    del.className = 'del';
+    del.title = 'Törlés';
+    del.setAttribute('aria-label', 'Oldal törlése');
+    del.textContent = '×';
+    del.addEventListener('click', function () {
+      tr.remove();
+      renumberSites();
+    });
+    delCell.appendChild(del);
+
+    tr.appendChild(orderCell);
+    tr.appendChild(titleCell);
+    tr.appendChild(urlCell);
+    tr.appendChild(visCell);
+    tr.appendChild(allowedCell);
+    tr.appendChild(delCell);
+    $('sites').appendChild(tr);
+    if (isNew) tr.dataset.isNew = '1';
+    renumberSites();
+    if (focus) titleInput.focus();
+  }
+
+  function renumberList(containerId) {
+    var rows = $(containerId).querySelectorAll('.row');
+    Array.prototype.forEach.call(rows, function (row, index) {
+      var num = row.querySelector('.row-num');
+      if (num) num.textContent = String(index + 1);
+    });
+  }
+
+  function addRow(containerId, value, placeholder) {
+    var row = document.createElement('div');
+    row.className = 'row';
+    var num = document.createElement('span');
+    num.className = 'row-num';
+    var input = document.createElement('input');
+    input.type = 'text';
+    input.spellcheck = false;
+    input.placeholder = placeholder;
+    input.value = value || '';
+    var del = document.createElement('button');
+    del.type = 'button';
+    del.className = 'del';
+    del.title = 'Törlés';
+    del.setAttribute('aria-label', 'Törlés');
+    del.textContent = '×';
+    del.addEventListener('click', function () {
+      row.remove();
+      renumberList(containerId);
+    });
+    row.appendChild(num);
+    row.appendChild(input);
+    row.appendChild(del);
+    $(containerId).appendChild(row);
+    renumberList(containerId);
+    return input;
+  }
+
+  function fillConfig(config) {
+    config = config || {};
+    $('start_url').value = config.start_url || '';
+    $('sites').textContent = '';
+    $('extra').textContent = '';
+    $('hidden').textContent = '';
+
+    (config.sites || []).forEach(function (site) {
+      addSite(site.title || '', site.url || '', true, site.allowed !== false, false);
+    });
+
+    (config.hidden_urls || []).forEach(function (item) {
+      if (item && typeof item === 'object') {
+        if (item.title) {
+          addSite(item.title, item.url || '', false, true, false);
+        } else {
+          addRow('hidden', item.url || '', 'https://pelda.hu/');
+        }
+      } else {
+        addRow('hidden', String(item || ''), 'https://pelda.hu/');
+      }
+    });
+
+    (config.extra_domains || []).forEach(function (domain) {
+      addRow('extra', domain, 'cdn.pelda.hu');
+    });
+
+    if (!config.sites || !config.sites.length) {
+      addSite('', '', true, true, false);
+    }
+
+    $('refresh').value = String(config.refresh_interval_seconds || 300);
+    originalResolution = config.resolution || '';
+    $('resolution').value = originalResolution;
+  }
+
+  function loadConfig() {
+    setStatus('Allowlist betöltése…', '');
+    api('/config').then(function (data) {
+      var meta = data.meta || {};
+      $('meta').textContent = 'GitHub: ' + (meta.owner || '?') + '/' + (meta.repo || '?') +
+        '/' + (meta.path || '?') + '@' + (meta.ref || '?') +
+        (meta.has_write_token ? '' : ' · nincs írásjogú token');
+      fillConfig(data.config);
+      setStatus('', '');
+      if (!meta.has_write_token) {
+        setStatus('Figyelem: nincs beállítva írásjogú GitHub token, a mentés nem fog működni. ' +
+          'Futtasd: kiosk-admin.sh set-write-token', 'err');
+      }
+    }).catch(function (err) {
+      setStatus('Hiba: ' + err.message, 'err');
+    });
+  }
+
+  function collectConfig() {
+    var sites = [];
+    var hidden = [];
+
+    Array.prototype.forEach.call($('sites').querySelectorAll('tr'), function (tr) {
+      var title = tr.querySelector('.site-title').value.trim();
+      var url = tr.querySelector('.site-url').value.trim();
+      var visible = tr.querySelector('.site-visible').checked;
+      var allowed = tr.querySelector('.site-allowed').checked;
+      if (!title && !url) return;
+      if (visible) {
+        sites.push({ title: title, url: url, allowed: allowed });
+      } else if (allowed) {
+        if (title) hidden.push({ title: title, url: url });
+        else hidden.push(url);
+      }
+    });
+
+    var extra = Array.prototype.map.call(
+      $('extra').querySelectorAll('input'),
+      function (input) { return input.value.trim(); }
+    ).filter(Boolean);
+
+    Array.prototype.forEach.call($('hidden').querySelectorAll('input'), function (input) {
+      var value = input.value.trim();
+      if (value) hidden.push(value);
+    });
+
+    return {
+      start_url: $('start_url').value.trim(),
+      sites: sites,
+      extra_domains: extra,
+      hidden_urls: hidden,
+      refresh_interval_seconds: Number($('refresh').value),
+      resolution: $('resolution').value.trim()
+    };
+  }
+
+  function domainKey(value) {
+    return String(value || '').trim().toLowerCase()
+      .replace(/\.+$/, '').replace(/^www\./, '');
+  }
+
+  function hostFromValue(value) {
+    var v = String(value || '').trim();
+    if (!v) return '';
+    if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(v)) v = 'https://' + v;
+    try { return domainKey(new URL(v).hostname); } catch (e) { return ''; }
+  }
+
+  function hostCovers(parent, child) {
+    parent = domainKey(parent);
+    child = domainKey(child);
+    return !!parent && !!child && (parent === child || child.endsWith('.' + parent));
+  }
+
+  function extraCovers(extra, domain) {
+    var key = domainKey(extra);
+    domain = domainKey(domain);
+    if (!key || !domain) return false;
+    if (key.indexOf('*.') === 0) return domain.endsWith('.' + key.slice(2));
+    return hostCovers(key, domain);
+  }
+
+  function existingExtraDomains() {
+    return Array.prototype.map.call(
+      $('extra').querySelectorAll('input'),
+      function (input) { return domainKey(input.value); }
+    ).filter(Boolean);
+  }
+
+  function allowedHostKeys() {
+    var hosts = [];
+    Array.prototype.forEach.call($('sites').querySelectorAll('tr'), function (tr) {
+      if (!tr.querySelector('.site-allowed').checked) return;
+      var host = hostFromValue(tr.querySelector('.site-url').value);
+      if (host) hosts.push(host);
+    });
+    Array.prototype.forEach.call($('hidden').querySelectorAll('input'), function (input) {
+      var host = hostFromValue(input.value);
+      if (host) hosts.push(host);
+    });
+    return hosts;
+  }
+
+  function closeDomainModal() {
+    domainModal.hidden = true;
+    domainError.textContent = '';
+    currentScanRow = null;
+  }
+
+  function renderDomainRows(data) {
+    var domains = data.domains || [];
+    var extras = existingExtraDomains();
+    var hosts = allowedHostKeys();
+    var selectable = 0;
+    domainList.textContent = '';
+
+    if (!domains.length) {
+      var empty = document.createElement('div');
+      empty.className = 'domain-row';
+      empty.textContent = 'Nem találtam külső domaint ezen az oldalon.';
+      domainList.appendChild(empty);
+      domainAdd.disabled = true;
+      return;
+    }
+
+    domains.forEach(function (item) {
+      var domain = item.domain;
+      var coveredExtra = extras.some(function (extra) { return extraCovers(extra, domain); });
+      var coveredHost = hosts.some(function (host) { return hostCovers(host, domain); });
+      var covered = coveredExtra || coveredHost;
+
+      var row = document.createElement('label');
+      row.className = 'domain-row';
+
+      var check = document.createElement('input');
+      check.type = 'checkbox';
+      check.className = 'domain-check';
+      check.value = domain;
+      check.checked = true;
+      check.disabled = covered;
+
+      var name = document.createElement('span');
+      name.className = 'domain-name';
+      name.textContent = domain;
+
+      var note = document.createElement('span');
+      note.className = 'domain-note';
+      if (coveredExtra) note.textContent = 'már az Extra domainek között';
+      else if (coveredHost) note.textContent = 'már engedélyezett oldal által';
+      else note.textContent = 'szükséges külső domain';
+
+      var count = document.createElement('span');
+      count.className = 'domain-count';
+      count.textContent = String(item.count || 1) + ' hivatkozás';
+
+      row.appendChild(check);
+      row.appendChild(name);
+      row.appendChild(note);
+      row.appendChild(count);
+      domainList.appendChild(row);
+      if (!covered) selectable += 1;
+    });
+
+    domainAdd.disabled = selectable === 0;
+  }
+
+  function scanSite(tr) {
+    if (!tr) return;
+    if (tr.dataset.scanning === '1') return;
+    var input = tr.querySelector('.site-url');
+    var url = input ? input.value.trim() : '';
+    if (!/^https?:\/\//i.test(url)) {
+      setStatus('A külső domainek kereséséhez teljes http(s) cím kell.', 'err');
+      if (input) input.focus();
+      return;
+    }
+
+    tr.dataset.scanning = '1';
+    currentScanRow = tr;
+    var scanBtn = tr.querySelector('.domain-scan');
+    if (scanBtn) scanBtn.disabled = true;
+    domainTitle.textContent = 'Külső domainek';
+    domainIntro.textContent = 'Keresés: ' + url;
+    domainList.textContent = 'Keresés…';
+    domainError.textContent = '';
+    domainAdd.disabled = true;
+    domainModal.hidden = false;
+
+    api('/discover', { url: url }).then(function (data) {
+      domainTitle.textContent = 'Külső domainek – ' + (data.site || '');
+      domainIntro.textContent = 'A weboldalhoz szükséges külső domainek. Pipáld ki, amelyeket az Extra domainekhez vegyek.';
+      renderDomainRows(data);
+    }).catch(function (err) {
+      domainList.textContent = '';
+      domainError.textContent = 'Hiba: ' + err.message;
+    }).then(function () {
+      tr.dataset.scanning = '0';
+      if (scanBtn) scanBtn.disabled = false;
+    });
+  }
+
+  function addSelectedDomains() {
+    var extras = existingExtraDomains();
+    var added = 0;
+    Array.prototype.forEach.call(domainList.querySelectorAll('.domain-check'), function (check) {
+      if (!check.checked || check.disabled) return;
+      var domain = domainKey(check.value);
+      if (!domain) return;
+      if (extras.some(function (extra) { return extraCovers(extra, domain); })) return;
+      addRow('extra', domain, 'cdn.pelda.hu');
+      extras.push(domain);
+      added += 1;
+    });
+    closeDomainModal();
+    if (added) {
+      setStatus(added + ' külső domain hozzáadva az Extra domainekhez. Mentés a GitHubra még szükséges.', 'ok');
+    } else {
+      setStatus('Nem jelöltél ki új külső domaint.', '');
+    }
+  }
+
+  function docSize(bytes) {
+    var n = Number(bytes) || 0;
+    if (n < 1024) return n + ' B';
+    if (n < 1048576) return (n / 1024).toFixed(1) + ' kB';
+    return (n / 1048576).toFixed(1) + ' MB';
+  }
+
+  function renderInbox(items) {
+    docsInboxList.textContent = '';
+    if (!items || !items.length) {
+      var empty = document.createElement('p');
+      empty.className = 'hint';
+      empty.textContent = 'Nincs beérkező fájl az inboxban.';
+      docsInboxList.appendChild(empty);
+      return;
+    }
+    items.forEach(function (item) {
+      var row = document.createElement('div');
+      row.className = 'docs-row';
+
+      var name = document.createElement('span');
+      name.className = 'docs-name';
+      name.title = item.name;
+      name.textContent = item.name;
+
+      var meta = document.createElement('span');
+      meta.className = 'docs-meta';
+      var date = item.mtime ? new Date(item.mtime * 1000) : null;
+      meta.textContent = docSize(item.size) +
+        (date ? ' · ' + date.toLocaleDateString('hu-HU') : '');
+
+      var del = document.createElement('button');
+      del.type = 'button';
+      del.className = 'docs-del';
+      del.textContent = 'Törlés';
+      del.addEventListener('click', function () {
+        deleteInbox(item.name);
+      });
+
+      row.appendChild(name);
+      row.appendChild(meta);
+      row.appendChild(del);
+      docsInboxList.appendChild(row);
+    });
+  }
+
+  function loadInbox() {
+    docsInboxStatus.textContent = 'Beérkezők betöltése…';
+    api('/docs/inbox').then(function (data) {
+      renderInbox(data.inbox || []);
+      docsInboxStatus.textContent = (data.inbox || []).length + ' beérkező fájl.';
+    }).catch(function (err) {
+      docsInboxStatus.textContent = 'Hiba: ' + err.message;
+    });
+  }
+
+  function deleteInbox(name) {
+    if (!window.confirm('Törlöd az inboxból?\n\n' + name)) return;
+    docsInboxStatus.textContent = 'Törlés…';
+    api('/docs/inbox/delete', { name: name }).then(function (data) {
+      renderInbox(data.inbox || []);
+      docsInboxStatus.textContent = 'Törölve az inboxból: ' + name;
+    }).catch(function (err) {
+      docsInboxStatus.textContent = 'Hiba: ' + err.message;
+    });
+  }
+
+  function processInbox() {
+    docsInboxStatus.textContent = 'Feldolgozás…';
+    api('/docs/process').then(function (data) {
+      renderInbox(data.inbox || []);
+      renderDocs(data.docs || []);
+      docsInboxStatus.textContent = 'Feldolgozás kész.';
+      docsStatus.textContent = (data.docs || []).length + ' dokumentum.';
+    }).catch(function (err) {
+      docsInboxStatus.textContent = 'Hiba: ' + err.message;
+    });
+  }
+
+  function renderDocs(docs) {
+    docsList.textContent = '';
+    if (!docs || !docs.length) {
+      var empty = document.createElement('p');
+      empty.className = 'hint';
+      empty.textContent = 'Nincs a helyi dokumentumtárban fájl.';
+      docsList.appendChild(empty);
+      return;
+    }
+    docs.forEach(function (item) {
+      var row = document.createElement('div');
+      row.className = 'docs-row';
+
+      var name = document.createElement('span');
+      name.className = 'docs-name';
+      name.title = item.name;
+      name.textContent = item.name;
+
+      var meta = document.createElement('span');
+      meta.className = 'docs-meta';
+      var date = item.mtime ? new Date(item.mtime * 1000) : null;
+      meta.textContent = docSize(item.size) +
+        (date ? ' · ' + date.toLocaleDateString('hu-HU') : '');
+
+      var del = document.createElement('button');
+      del.type = 'button';
+      del.className = 'docs-del';
+      del.textContent = 'Törlés';
+      del.addEventListener('click', function () {
+        deleteDoc(item.name);
+      });
+
+      row.appendChild(name);
+      row.appendChild(meta);
+      row.appendChild(del);
+      docsList.appendChild(row);
+    });
+  }
+
+  function loadDocs() {
+    docsStatus.textContent = 'Dokumentumok betöltése…';
+    api('/docs/list').then(function (data) {
+      renderDocs(data.docs || []);
+      docsStatus.textContent = (data.docs || []).length + ' dokumentum.';
+    }).catch(function (err) {
+      docsStatus.textContent = 'Hiba: ' + err.message;
+    });
+  }
+
+  function deleteDoc(name) {
+    if (!window.confirm('Törlöd a helyi dokumentumtárból?\n\n' + name)) return;
+    docsStatus.textContent = 'Törlés…';
+    api('/docs/delete', { name: name }).then(function (data) {
+      renderDocs(data.docs || []);
+      docsStatus.textContent = 'Törölve: ' + name;
+    }).catch(function (err) {
+      docsStatus.textContent = 'Hiba: ' + err.message;
+    });
+  }
+
+  function findDuplicate(config) {
+    var seen = {};
+    function key(value) {
+      return String(value || '').trim().toLowerCase().replace(/\/+$/, '');
+    }
+    function check(value, label) {
+      var k = key(value);
+      if (!k) return '';
+      if (seen[k]) return 'Duplikált ' + label + ': ' + value;
+      seen[k] = true;
+      return '';
+    }
+    var i;
+    for (i = 0; i < config.sites.length; i += 1) {
+      var err = check(config.sites[i].url, 'webcím');
+      if (err) return err;
+    }
+    for (i = 0; i < config.hidden_urls.length; i += 1) {
+      var item = config.hidden_urls[i];
+      var hiddenUrl = (item && typeof item === 'object') ? item.url : item;
+      err = check(hiddenUrl, 'rejtett URL');
+      if (err) return err;
+    }
+    var extraSeen = {};
+    for (i = 0; i < config.extra_domains.length; i += 1) {
+      var domain = String(config.extra_domains[i]).trim().toLowerCase();
+      if (!domain) continue;
+      if (extraSeen[domain]) return 'Duplikált extra domain: ' + domain;
+      extraSeen[domain] = true;
+    }
+    return '';
+  }
+
+  function save() {
+    var config = collectConfig();
+    if (!config.start_url) {
+      setStatus('A start URL kötelező.', 'err');
+      return;
+    }
+    var duplicate = findDuplicate(config);
+    if (duplicate) {
+      setStatus(duplicate, 'err');
+      return;
+    }
+    saveButton.disabled = true;
+    setStatus('Mentés folyamatban…', '');
+    api('/save', { config: config }).then(function (data) {
+      setStatus(data.message || 'Mentve.', 'ok');
+      originalResolution = config.resolution;
+      $('save-note').textContent = 'A kiosk a mentés után frissíti a listát; a felbontás a következő session-indításkor érvényesül.';
+    }).catch(function (err) {
+      setStatus('Hiba: ' + err.message, 'err');
+    }).then(function () {
+      saveButton.disabled = false;
+    });
+  }
+
+  function doPower(action) {
+    var label = action === 'reboot' ? 'újraindítod' : 'kikapcsolod';
+    if (!window.confirm('Biztosan ' + label + ' a kioskot?')) return;
+    powerMenu.hidden = true;
+    setStatus(action === 'reboot' ? 'Újraindítás…' : 'Kikapcsolás…', '');
+    api('/power', { action: action }).then(function () {
+      setStatus(action === 'reboot' ? 'A kiosk újraindul.' : 'A kiosk kikapcsol.', 'ok');
+    }).catch(function (err) {
+      setStatus('Hiba: ' + err.message, 'err');
+    });
+  }
+
+  $('gate-form').addEventListener('submit', function (event) {
+    event.preventDefault();
+    var value = pinInput.value.trim();
+    gateError.textContent = '';
+    if (!value) return;
+    api('/auth', { pin: value }).then(function () {
+      pin = value;
+      gate.hidden = true;
+      app.hidden = false;
+      loadConfig();
+      loadDocs();
+      loadInbox();
+      if (window.location.hash === '#docs') {
+        var docsCard = document.getElementById('docs');
+        if (docsCard) docsCard.scrollIntoView();
+      }
+    }).catch(function (err) {
+      gateError.textContent = err.message;
+      pinInput.select();
+    });
+  });
+
+  $('add-site').addEventListener('click', function () { addSite('', '', true, true, true, true); });
+  $('add-extra').addEventListener('click', function () { addRow('extra', '', 'cdn.pelda.hu').focus(); });
+  $('add-hidden').addEventListener('click', function () { addRow('hidden', '', 'https://pelda.hu/').focus(); });
+  $('save').addEventListener('click', save);
+  if (docsInboxRefresh) docsInboxRefresh.addEventListener('click', loadInbox);
+  if (docsProcess) docsProcess.addEventListener('click', processInbox);
+  if (docsRefresh) docsRefresh.addEventListener('click', loadDocs);
+
+  if (domainAdd) domainAdd.addEventListener('click', addSelectedDomains);
+  if (domainClose) domainClose.addEventListener('click', closeDomainModal);
+  if (domainCancel) domainCancel.addEventListener('click', closeDomainModal);
+  if (domainModal) {
+    domainModal.addEventListener('click', function (event) {
+      if (event.target === domainModal) closeDomainModal();
+    });
+  }
+  document.addEventListener('keydown', function (event) {
+    if (event.key === 'Escape' && domainModal && !domainModal.hidden) {
+      closeDomainModal();
+    }
+  });
+
+  $('power-btn').addEventListener('click', function (event) {
+    event.stopPropagation();
+    powerMenu.hidden = !powerMenu.hidden;
+  });
+  powerMenu.addEventListener('click', function (event) {
+    var button = event.target.closest('button[data-action]');
+    if (button) doPower(button.getAttribute('data-action'));
+  });
+  document.addEventListener('click', function (event) {
+    if (!powerMenu.hidden && !event.target.closest('.power-wrap')) powerMenu.hidden = true;
+  });
+  document.addEventListener('keydown', function (event) {
+    if (event.key === 'Escape') powerMenu.hidden = true;
+  });
+
+  pinInput.focus();
+})();
+</script>
+</body>
+</html>

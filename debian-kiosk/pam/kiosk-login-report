@@ -1,0 +1,6 @@
+Name: Kiosk login report (public IP + time + log to GitHub)
+Default: yes
+Priority: 128
+Session-Type: Additional
+Session:
+	optional	pam_exec.so quiet /usr/local/bin/kiosk-login-report.sh --pam

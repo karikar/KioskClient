@@ -1,0 +1,12 @@
+# Titkok – ezek SOHA ne kerüljenek verziókezelésbe.
+github.env
+Token_kiosk.txt
+*.token
+*.pat
+
+# A kiosk projekt saját szabályai a debian-kiosk/.gitignore-ban vannak.
+
+# Kiadási csomagok és helyi segédfájlok
+/dist/
+/debian-kiosk.tar.gz
+.tmp-*

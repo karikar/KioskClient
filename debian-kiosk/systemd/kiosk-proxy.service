@@ -1,0 +1,21 @@
+[Unit]
+Description=Kiosk allowlist proxy (tinyproxy)
+After=network.target
+ConditionPathExists=/etc/kiosk/tinyproxy.conf
+# Egy hibás konfig miatt se adja fel végleg: mindig próbálkozzon újra.
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+DynamicUser=yes
+ExecStart=@TINYPROXY_BIN@ -d -c /etc/kiosk/tinyproxy.conf
+Restart=always
+RestartSec=3
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=strict
+ReadOnlyPaths=/etc/kiosk
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,34 @@
+# =============================================================================
+# Debian kiosk - tinyproxy allowlist proxy
+# Generált fájl, ne szerkeszd! A forrás: /usr/share/kiosk/proxy/tinyproxy.conf.in
+# Verzió: @KIOSK_VERSION@
+#
+# FONTOS: a tinyproxy 1.11 (Debian 12) már thread-alapú, ezért a régi
+# StartServers / MinSpareServers / MaxSpareServers / MaxRequestsPerChild
+# direktívák NEM használhatók (el sem indul tőlük). A FilterURLs szintén
+# kerülendő: HTTPS-nél nem működik, ezért domain-alapú szűrés van.
+# =============================================================================
+
+# Csak a helyi gépről (Firefox) fogad kapcsolatot.
+Port @PROXY_PORT@
+Listen 127.0.0.1
+Timeout 600
+MaxClients 200
+
+Allow 127.0.0.1
+
+# Allowlist: minden tiltva, ami nincs a generált minták között.
+Filter "@PROXY_FILTER@"
+FilterType ere
+FilterCaseSensitive Off
+FilterDefaultDeny Yes
+
+# HTTPS (CONNECT) csak ezekre a portokra mehet.
+ConnectPort 443
+ConnectPort 563
+
+DisableViaHeader Yes
+LogLevel Warning
+
+# Magyar hibaoldal a tiltott oldalakhoz és a proxy hibákhoz.
+DefaultErrorFile "/usr/share/kiosk/proxy/error.html"

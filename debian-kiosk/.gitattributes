@@ -1,0 +1,4 @@
+# Debian kiosk - git beállítások
+* text=auto eol=lf
+*.png binary
+*.jpg binary

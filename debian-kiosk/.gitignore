@@ -1,0 +1,4 @@
+# Helyi tesztek / átmeneti minták
+tests/_*
+*.tmp
+*.log

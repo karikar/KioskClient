@@ -1,0 +1,23 @@
+{
+  "start_url": "https://www.szerencsejatek.hu/",
+  "sites": [
+    { "title": "Szerencsejáték", "url": "https://www.szerencsejatek.hu/" },
+    { "title": "ETO", "url": "https://eto.szerencsejatek.hu/" },
+    { "title": "TippMix", "url": "https://www.tippmix.hu/" },
+    { "title": "TippMix Pro", "url": "https://www.tippmixpro.hu/" },
+    { "title": "Edzők Ligája (archív)", "url": "https://bet.szerencsejatek.hu/edzok-ligaja-archiv" },
+    { "title": "Nyereményjegyzék", "url": "https://bet.szerencsejatek.hu/nyeremenyjegyzek" },
+    { "title": "Dokumentumok", "url": "https://bet.szerencsejatek.hu/dokumentumok" },
+    { "title": "Lóvifogadás", "url": "https://lovifogadas.hu/" },
+    { "title": "Kincsem Park", "url": "https://kincsempark.hu/" },
+    { "title": "Virtuális Sport", "url": "http://schedulerzrh.aitcloud.de/retail_scheduler/display/index/schedule:13a92cec0a3b58c3944f2e4b0f2c1ef6" },
+    { "title": "Játékostájékoztató", "url": "https://jatekostajekoztatok.szrt.hu/partner/index.html" },
+    { "title": "Használtautó", "url": "https://www.hasznaltauto.hu/" },
+    { "title": "Teletext", "url": "https://www.teletext.hu/" },
+    { "title": "Privát élelmiszer", "url": "http://privatelelmiszer.hu/" },
+    { "title": "OTR", "url": "https://v2.otr.hu/index.php?route=account/login" }
+  ],
+  "extra_domains": [],
+  "hidden_urls": [],
+  "refresh_interval_seconds": 300
+}

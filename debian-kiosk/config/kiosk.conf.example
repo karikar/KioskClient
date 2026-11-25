@@ -1,0 +1,95 @@
+# =============================================================================
+# Debian kiosk - példa konfiguráció
+#
+# Éles helyen: /etc/kiosk/kiosk.conf  (az install.sh generálja)
+# A fájl bash-szintaxisú, a scriptek "source"-olják.
+# =============================================================================
+
+# --- kiosk felhasználó és könyvtárak ---------------------------------------
+KIOSK_USER=kiosk
+KIOSK_HOME=/var/lib/kiosk
+KIOSK_ETC=/etc/kiosk
+KIOSK_PROFILE=/var/lib/kiosk/firefox
+KIOSK_DOWNLOADS=/var/lib/kiosk/Downloads
+KIOSK_STATE=/var/lib/kiosk/state
+KIOSK_RUN=/run/kiosk
+
+# --- megjelenés -------------------------------------------------------------
+SITE_NAME="Kiosk"
+START_PAGE=/srv/kiosk/start.html
+DOCS_DIR=/srv/kiosk/docs
+INBOX_DIR=/srv/kiosk/inbox
+
+# --- GitHub forrás (privát repó) -------------------------------------------
+GITHUB_OWNER=karikar
+GITHUB_REPO=kiosk
+GITHUB_REF=main
+GITHUB_PATH=allowlist.json
+GITHUB_TOKEN_FILE=/etc/kiosk/github.token
+# Az admin felület GitHubra íráshoz (Contents: Read and write); opcionális.
+GITHUB_WRITE_TOKEN_FILE=/etc/kiosk/github-write.token
+
+# --- allowlist proxy --------------------------------------------------------
+# 1 = a böngésző csak a listán szereplő domainekre mehet (ajánlott)
+# 0 = csak könyvjelzők/kezdőlap, hálózati tiltás nélkül
+ENFORCE_ALLOWLIST=1
+PROXY_PORT=8877
+PROXY_FILTER=/etc/kiosk/proxy-filter
+PROXY_CONF=/etc/kiosk/tinyproxy.conf
+# PIN-es ideiglenes feloldás időtartama (perc); a főoldali PIN gombhoz.
+PROXY_BYPASS_MINUTES=15
+
+# --- belépéskori jelentés (opcionális) -------------------------------------
+# Minden login alkalmával nyilvános IP + időpont + naplófájl feltöltése
+# GitHubra. A célrepó legyen PRIVÁT. A tokenhez Contents: Read and write kell.
+REPORT_ENABLED=0
+REPORT_GITHUB_OWNER=karikar
+REPORT_GITHUB_REPO=kiosk
+REPORT_GITHUB_REF=main
+REPORT_PATH=login-logs
+REPORT_TOKEN_FILE=/etc/kiosk/report.token
+REPORT_LOG_LINES=200
+
+# --- helyi, rejtett engedélyezés / admin felület ---------------------------
+# A kioskon a Ctrl+Shift+Alt+A nyitja a PIN-nel védett mezőt; az itt megadott
+# címek domainje engedélyezve lesz, de a menüben nem jelenik meg.
+LOCAL_HIDDEN_FILE=/etc/kiosk/hidden-urls.local
+LOCAL_SITES_FILE=/etc/kiosk/local-sites.local
+ADMIN_PIN_FILE=/etc/kiosk/admin.pin
+ADMIN_UI_PORT=8878
+
+# --- dokumentumok -----------------------------------------------------------
+MAX_FILE_MB=2048
+USB_IMPORT=1
+USB_MOUNT_ROOT=/run/media/kiosk-usb
+
+# --- egyéb ------------------------------------------------------------------
+REFRESH_MINUTES=10
+KIOSK_LANG=hu_HU.UTF-8
+
+# --- magyar billentyűzet (Wayland/cage + konzol) ---------------------------
+# A hu layout adja az áéíóöőúüű karaktereket; a session XKB_DEFAULT_* néven
+# adja át a cage-nek, a telepítő a /etc/default/keyboard fájlt is beállítja.
+KEYBOARD_LAYOUT=hu
+KEYBOARD_MODEL=pc105
+KEYBOARD_VARIANT=
+KEYBOARD_OPTIONS=
+
+# --- program önfrissítés (GitHub Releases) ---------------------------------
+# A kiosk-update.timer óránként megnézi a program-repó legutóbbi kiadását
+# (release). Ha a tag (pl. v1.2.0) újabb, mint a /usr/share/kiosk/VERSION,
+# letölti a debian-kiosk-<verzió>.tar.gz csatolmányt, ellenőrzi a SHA-256-ot,
+# és frissítő módban lefuttatja az install.sh-t. Hiba esetén visszaáll.
+UPDATE_ENABLED=1
+UPDATE_GITHUB_OWNER=karikar
+UPDATE_GITHUB_REPO=KioskClient
+# Csak privát repóhoz kell (fine-grained PAT, Contents: Read):
+#   sudo kiosk-admin.sh set-update-token
+UPDATE_TOKEN_FILE=/etc/kiosk/update.token
+UPDATE_INTERVAL_MINUTES=60
+# Telepítés csak ebben az órasávban (pl. 02-05); üres = bármikor.
+# Az ellenőrzés ettől függetlenül óránként fut.
+UPDATE_WINDOW=
+# 1 = csak .sha256-tal ellátott release csatolmányt telepít (ajánlott).
+UPDATE_REQUIRE_CHECKSUM=1
+UPDATE_SETUP_DIR=/opt/kiosk-setup

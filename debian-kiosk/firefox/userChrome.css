@@ -1,0 +1,211 @@
+/* ==========================================================================
+   Debian kiosk - Firefox ESR userChrome.css
+
+   Cél: a böngészőben CSAK a Vissza / Előre / Kezdőlap gomb és a
+   könyvjelzőmenü (engedélyezett oldalak) legyen látható.
+
+   A felső sáv és a könyvjelzősáv világos, a feliratok és ikonok sötétek,
+   a legördülő menük fehér hátterűek sötét felirattal - így napfényes
+   helyiségben és gyengébb kijelzőn is minden látszik.
+
+   Bekapcsolás: toolkit.legacyUserProfileCustomizations.stylesheets = true
+   ========================================================================== */
+
+/* --- minden felesleges sáv és gomb elrejtése ---------------------------- */
+#TabsToolbar,
+#toolbar-menubar,
+#menubar-items,
+menubar,
+#titlebar,
+#tabbrowser-tabs,
+#urlbar-container,
+#search-container,
+#searchbar,
+#PanelUI-button,
+#PanelUI-menu-button,
+#unified-extensions-button,
+#library-button,
+#fxa-toolbar-menu-button,
+#downloads-button,
+#sidebar-button,
+#firefox-view-button,
+#alltabs-button,
+#new-tab-button,
+#tabs-newtab-button,
+#stop-reload-button,
+#nav-bar-overflow-button,
+#widget-overflow-fixed-button,
+#save-to-pocket-button,
+#customization-container,
+#contextual-feature-recommendation,
+#notification-popup-box,
+#tracking-protection-icon-container,
+#page-action-buttons,
+#OtherBookmarks {
+    display: none !important;
+}
+
+/* --- felső sáv: világos háttér, sötét ikonok ---------------------------- */
+#navigator-toolbox {
+    padding: 0 !important;
+    border: none !important;
+    background: #ffffff !important;
+    color: #0e1a2f !important;
+}
+
+#nav-bar {
+    min-height: 58px !important;
+    padding: 7px 10px !important;
+    border: none !important;
+    background: #ffffff !important;
+    color: #0e1a2f !important;
+    box-shadow: 0 1px 0 #c7d4e6, 0 2px 10px rgba(14, 26, 47, 0.06) !important;
+
+    /* A Firefox a toolbar-ikonokat ezekből a változókból színezi. */
+    --toolbarbutton-icon-fill: #0e1a2f !important;
+    --toolbarbutton-icon-fill-attention: #b45309 !important;
+    --lwt-toolbarbutton-icon-fill: #0e1a2f !important;
+    --toolbarbutton-hover-background: #e8f0fd !important;
+    --toolbarbutton-active-background: #d7e3f8 !important;
+}
+
+#nav-bar-customization-target {
+    gap: 10px !important;
+}
+
+#back-button,
+#forward-button,
+#home-button {
+    min-width: 54px !important;
+    min-height: 44px !important;
+    padding: 6px !important;
+    border-radius: 10px !important;
+    color: #0e1a2f !important;
+    fill: #0e1a2f !important;
+}
+
+/* A vissza/előre/home ikonok context-fill-t használnak. */
+#back-button .toolbarbutton-icon,
+#forward-button .toolbarbutton-icon,
+#home-button .toolbarbutton-icon {
+    fill: #0e1a2f !important;
+    -moz-context-properties: fill, fill-opacity !important;
+}
+
+#back-button:hover,
+#forward-button:hover,
+#home-button:hover {
+    background: #e8f0fd !important;
+}
+
+#back-button[disabled="true"],
+#forward-button[disabled="true"] {
+    opacity: 0.4 !important;
+}
+
+/* --- könyvjelzősáv = a menü -------------------------------------------- */
+#PersonalToolbar {
+    min-height: 52px !important;
+    padding: 6px 10px !important;
+    border-top: 1px solid #c7d4e6 !important;
+    background: #f4f7fb !important;
+    color: #0e1a2f !important;
+}
+
+#PlacesToolbarItems {
+    gap: 6px !important;
+}
+
+/* Csak a sávon lévő elemekre hat, a legördülő menü elemeire nem. */
+#PlacesToolbarItems > .bookmark-item {
+    min-height: 38px !important;
+    padding: 7px 14px !important;
+    border-radius: 9px !important;
+    color: #0e1a2f !important;
+    font-size: 14px !important;
+}
+
+#PlacesToolbarItems > .bookmark-item:hover {
+    background: #e8f0fd !important;
+}
+
+#PlacesToolbarItems > .bookmark-item > .toolbarbutton-icon {
+    fill: #0e1a2f !important;
+    -moz-context-properties: fill, fill-opacity !important;
+}
+
+/* A "⌂ Kezdőlap" könyvjelző viselkedjen home gombként */
+#PlacesToolbarItems > .bookmark-item[label="⌂ Kezdőlap"] {
+    background: #f5b301 !important;
+    color: #0b1220 !important;
+    font-weight: 800 !important;
+}
+
+#personal-toolbar-empty-description {
+    display: none !important;
+}
+
+/* --- legördülő menük: fehér háttér, sötét felirat ----------------------- */
+/* A menü hátterét a Firefox a ::part(content) árnyékrészen rajzolja, ezért
+   a hátteret ott is be kell állítani; a feliratot pedig fixen sötétre. */
+menupopup,
+panel {
+    --panel-background: #ffffff !important;
+    --panel-color: #0e1a2f !important;
+    --panel-border-color: #c7d4e6 !important;
+    --panel-separator-color: #c7d4e6 !important;
+    background-color: #ffffff !important;
+    color: #0e1a2f !important;
+}
+
+menupopup::part(content),
+panel::part(content) {
+    background-color: #ffffff !important;
+    color: #0e1a2f !important;
+    border: 1px solid #c7d4e6 !important;
+    border-radius: 10px !important;
+}
+
+menupopup menuitem,
+menupopup menu,
+menupopup .bookmark-item,
+panel menuitem,
+panel menu,
+panel .bookmark-item {
+    color: #0e1a2f !important;
+}
+
+menupopup .bookmark-item > .toolbarbutton-icon,
+panel .bookmark-item > .toolbarbutton-icon {
+    fill: #0e1a2f !important;
+    -moz-context-properties: fill, fill-opacity !important;
+}
+
+menupopup menuitem[_moz-menuactive="true"],
+menupopup menu[_moz-menuactive="true"],
+menupopup .bookmark-item[_moz-menuactive="true"],
+menupopup menuitem:hover,
+menupopup menu:hover,
+menupopup .bookmark-item:hover,
+panel menuitem:hover,
+panel menu:hover,
+panel .bookmark-item:hover {
+    background-color: #e8f0fd !important;
+    color: #0b57d0 !important;
+}
+
+menuseparator {
+    background-color: #c7d4e6 !important;
+}
+
+/* --- tartalom ne csússzon a sávok alá ---------------------------------- */
+#navigator-toolbox,
+#PersonalToolbar {
+    position: relative !important;
+    z-index: 10 !important;
+}
+
+#tabbrowser-tabbox,
+#appcontent {
+    margin-top: 0 !important;
+}

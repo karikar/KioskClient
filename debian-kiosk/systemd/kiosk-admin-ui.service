@@ -1,0 +1,25 @@
+[Unit]
+Description=Kiosk admin allowlist UI (GitHub szerkesztő)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+Environment=ADMIN_UI_PORT=@ADMIN_UI_PORT@
+Environment=GITHUB_OWNER=@GITHUB_OWNER@
+Environment=GITHUB_REPO=@GITHUB_REPO@
+Environment=GITHUB_REF=@GITHUB_REF@
+Environment=GITHUB_PATH=@GITHUB_PATH@
+Environment=GITHUB_TOKEN_FILE=@GITHUB_TOKEN_FILE@
+Environment=GITHUB_WRITE_TOKEN_FILE=@GITHUB_WRITE_TOKEN_FILE@
+Environment=ADMIN_BYPASS_MINUTES=@PROXY_BYPASS_MINUTES@
+Environment=KIOSK_BYPASS_FILE=/run/kiosk/proxy-bypass
+ExecStart=/usr/bin/python3 /usr/local/bin/kiosk-admin-ui.py
+Restart=always
+RestartSec=3
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=yes
+
+[Install]
+WantedBy=multi-user.target

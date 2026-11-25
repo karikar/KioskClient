@@ -1,0 +1,643 @@
+/* ==========================================================================
+   Debian kiosk - helyi kezdőlap és dokumentumlista
+
+   Világos, nagy kontrasztú téma. A linkek mindenhol felismerhetőek:
+   kék szín + aláhúzás; a kártyák (tile/doc) esetében a teljes kártya a
+   link, ezért ott a kártya saját színe érvényesül.
+   ========================================================================== */
+
+:root {
+  color-scheme: light;
+
+  --bg: #f4f7fb;
+  --bg-2: #eaf0f8;
+  --panel: #ffffff;
+  --panel-2: #fbfdff;
+  --border: #c7d4e6;
+  --border-strong: #8ea6c6;
+  --text: #0e1a2f;
+  --muted: #3f4f6b;
+
+  /* Linkek: mindhárom állapot legalább 6:1 kontrasztú fehér alapon. */
+  --link: #0b57d0;
+  --link-visited: #6a1b9a;
+  --link-hover: #0842a0;
+
+  --accent: #f5b301;
+  --accent-ink: #0b1220;
+  --ok: #15803d;
+  --ok-bg: #e9f7ef;
+  --ok-border: #8fd3a8;
+
+  --radius: 14px;
+  --shadow: 0 1px 2px rgba(14, 26, 47, 0.06),
+    0 10px 26px rgba(14, 26, 47, 0.07);
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+
+html, body { height: 100%; }
+
+/* --- linkek -------------------------------------------------------------- */
+
+/* Alapból minden link kék és aláhúzott, hogy semmilyen szövegkörnyezetben
+   ne tűnhessen el. A kártyák ezt alább felülírják. */
+a {
+  color: var(--link);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+a:visited { color: var(--link-visited); }
+a:hover { color: var(--link-hover); }
+
+a:focus-visible {
+  outline: 3px solid rgba(11, 87, 208, 0.45);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+body {
+  margin: 0;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  color: var(--text);
+  background:
+    radial-gradient(1100px 520px at 50% -12%, #ffffff 0%, var(--bg) 62%),
+    var(--bg);
+  font-family: "DejaVu Sans", "Liberation Sans", system-ui, -apple-system,
+    "Segoe UI", Roboto, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* --- felső sáv ---------------------------------------------------------- */
+
+.topbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 28px;
+  background: #ffffff;
+  border-bottom: 1px solid var(--border);
+  box-shadow: 0 2px 10px rgba(14, 26, 47, 0.05);
+}
+
+/* Címbeviteli mező a fejlécben (a home mellett). */
+.address {
+  display: flex;
+  flex: 1 1 300px;
+  max-width: 380px;
+  gap: 8px;
+  margin: 0 2px;
+}
+
+.address input {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 42px;
+  padding: 8px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  background: #ffffff;
+  color: var(--text);
+  font: inherit;
+  font-size: 15px;
+}
+
+.address input:focus {
+  outline: 3px solid rgba(11, 87, 208, 0.35);
+  outline-offset: 1px;
+  border-color: var(--link);
+}
+
+.address button {
+  flex: 0 0 auto;
+  min-height: 42px;
+  padding: 8px 16px;
+  border: 1px solid var(--link);
+  border-radius: 10px;
+  background: var(--link);
+  color: #ffffff;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.address button:hover { background: var(--link-hover); }
+
+/* PIN-es ideiglenes proxy-feloldás a fejlécben. */
+.pin-unlock {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 6px;
+  min-height: 42px;
+  padding: 8px 13px;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  background: #ffffff;
+  color: var(--link);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.pin-unlock:hover { background: #eef3fb; }
+.pin-unlock.lock-now { padding: 8px 11px; }
+
+.pin-unlock svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.unlock-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  background: rgba(14, 26, 47, 0.55);
+  backdrop-filter: blur(3px);
+}
+
+.unlock-dialog {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: min(430px, 100%);
+  height: min(470px, 100%);
+  overflow: hidden;
+  background: #ffffff;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: 0 18px 50px rgba(14, 26, 47, 0.28);
+}
+
+.unlock-dialog iframe {
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: 0;
+  border: 0;
+  background: #ffffff;
+}
+
+.unlock-close {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  z-index: 2;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: #ffffff;
+  color: var(--text);
+  font: inherit;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.unlock-close:hover { background: #eef3fb; }
+
+.unlock-direct {
+  display: block;
+  padding: 7px 10px;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 12px;
+  text-align: center;
+  text-decoration: none;
+}
+
+.unlock-direct:hover { color: var(--link); text-decoration: underline; }
+
+.unlock-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 26px;
+  z-index: 1100;
+  max-width: min(560px, calc(100% - 32px));
+  padding: 12px 18px;
+  border-radius: 10px;
+  background: #0e1a2f;
+  color: #ffffff;
+  font-size: 14px;
+  text-align: center;
+  transform: translateX(-50%);
+  box-shadow: 0 8px 24px rgba(14, 26, 47, 0.3);
+}
+
+.brand {
+  position: relative;
+  padding-left: 16px;
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: 0.4px;
+  color: var(--text);
+}
+
+.brand::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 4px;
+  bottom: 4px;
+  width: 6px;
+  border-radius: 3px;
+  background: var(--accent);
+}
+
+.clock {
+  max-width: 62%;
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.35;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  text-align: right;
+}
+
+/* --- kezdőlap rácsa ----------------------------------------------------- */
+
+.grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+  gap: 16px;
+  padding: 24px 28px 32px;
+  align-content: start;
+}
+
+.tile,
+.tile:visited {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
+  min-height: 108px;
+  padding: 18px 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: linear-gradient(180deg, var(--panel-2), var(--panel));
+  box-shadow: var(--shadow);
+  color: var(--text);
+  text-decoration: none;
+  overflow: hidden;
+  transition: transform 0.12s ease, border-color 0.12s ease,
+    box-shadow 0.12s ease;
+}
+
+.tile:hover,
+.tile:focus-visible {
+  transform: translateY(-2px);
+  border-color: var(--link);
+  box-shadow: 0 2px 4px rgba(14, 26, 47, 0.08),
+    0 14px 32px rgba(11, 87, 208, 0.16);
+  outline: none;
+}
+
+.tile:focus-visible {
+  outline: 3px solid rgba(11, 87, 208, 0.45);
+  outline-offset: 3px;
+}
+
+.tile:active { transform: scale(0.99); }
+
+.tile-title {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 19px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.tile-url {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tile-blocked { border-style: dashed; }
+
+.tile-lock {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  padding: 2px 7px;
+  border: 1px solid #e6c77a;
+  border-radius: 999px;
+  background: #fff8e1;
+  color: #7a5200;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
+.tile-docs {
+  border-color: var(--ok-border);
+  background: linear-gradient(180deg, #f3fbf6, var(--ok-bg));
+}
+
+.tile-docs .tile-title { color: #0f5132; }
+.tile-docs .tile-url { color: #2f6b4a; }
+
+/* Hoverre a kártya alatti URL is link-színt kap (a .tile-docs szabályai után
+   kell állnia, különben a zöld szín felülírná). */
+.tile:hover .tile-url { color: var(--link); }
+
+/* --- lábléc ------------------------------------------------------------- */
+
+.footer {
+  padding: 10px 28px;
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 12px;
+  text-align: right;
+}
+
+/* --- dokumentumok oldal -------------------------------------------------- */
+
+.docs-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 28px;
+  background: #ffffff;
+  border-bottom: 1px solid var(--border);
+  box-shadow: 0 2px 10px rgba(14, 26, 47, 0.05);
+}
+
+.docs-head .clock {
+  font-size: 15px;
+}
+
+.docs-manage,
+.docs-manage:visited {
+  display: inline-flex;
+  align-items: center;
+  min-height: 38px;
+  padding: 7px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #f7f9fd;
+  color: var(--link);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.docs-manage:hover { background: #eef3fb; }
+
+.back,
+.back:visited {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 10px 18px;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  background: #ffffff;
+  color: var(--link);
+  font-size: 16px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.back:hover,
+.back:focus-visible {
+  border-color: var(--link);
+  background: #e8f0fd;
+  color: var(--link-hover);
+}
+
+.back:focus-visible {
+  outline: 3px solid rgba(11, 87, 208, 0.45);
+  outline-offset: 3px;
+}
+
+.docs {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 16px;
+  padding: 24px 28px 32px;
+  align-content: start;
+  align-items: start;
+}
+
+.doc,
+.doc:visited {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: linear-gradient(180deg, var(--panel-2), var(--panel));
+  box-shadow: var(--shadow);
+  color: var(--text);
+  text-decoration: none;
+  transition: transform 0.12s ease, border-color 0.12s ease,
+    box-shadow 0.12s ease;
+}
+
+.doc:hover,
+.doc:focus-visible {
+  transform: translateY(-2px);
+  border-color: var(--link);
+  box-shadow: 0 2px 4px rgba(14, 26, 47, 0.08),
+    0 14px 32px rgba(11, 87, 208, 0.16);
+  outline: none;
+}
+
+.doc:focus-visible {
+  outline: 3px solid rgba(11, 87, 208, 0.45);
+  outline-offset: 3px;
+}
+
+.doc-badge {
+  align-self: flex-start;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #e8f0fd;
+  color: #0b4bb3;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.doc-name {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.doc-meta {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.doc-video {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: 10px;
+  background: #000;
+}
+
+.empty {
+  grid-column: 1 / -1;
+  padding: 40px 8px;
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 1.7;
+  text-align: center;
+}
+
+.empty strong { color: var(--text); }
+
+/* --- kisebb kijelzők ---------------------------------------------------- */
+
+@media (max-width: 900px) {
+  .topbar { padding: 12px 16px; }
+  .brand { font-size: 21px; }
+  .clock { max-width: 58%; font-size: 14px; }
+  .docs-head .clock { font-size: 13px; }
+  .address { flex-basis: 100%; max-width: none; order: 3; margin: 0; }
+  .grid, .docs { padding: 16px; gap: 12px; }
+  .grid { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+}
+
+/* --- téma váltó ---------------------------------------------------------- */
+
+.theme-toggle {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+  font-size: 19px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.theme-toggle:hover { background: var(--bg-2); }
+.theme-toggle:focus-visible {
+  outline: 3px solid rgba(11, 87, 208, 0.45);
+  outline-offset: 2px;
+}
+
+/* --- sötét téma ---------------------------------------------------------- */
+
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0b1220;
+  --bg-2: #17233a;
+  --panel: #131e32;
+  --panel-2: #18243b;
+  --border: #2b3a55;
+  --border-strong: #52688a;
+  --text: #eaf1fb;
+  --muted: #a9b8cf;
+  --link: #8ab4ff;
+  --link-visited: #c9a7ff;
+  --link-hover: #b7d0ff;
+  --accent: #f5b301;
+  --accent-ink: #0b1220;
+  --ok: #7ee2a8;
+  --ok-bg: #0f2a1d;
+  --ok-border: #2f6b4a;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.35),
+    0 10px 26px rgba(0, 0, 0, 0.4);
+}
+
+html[data-theme="dark"] body {
+  background:
+    radial-gradient(1100px 520px at 50% -12%, #1a2942 0%, var(--bg) 62%),
+    var(--bg);
+}
+
+html[data-theme="dark"] .topbar,
+html[data-theme="dark"] .docs-head {
+  background: var(--panel);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+}
+
+html[data-theme="dark"] .address input,
+html[data-theme="dark"] .pin-unlock,
+html[data-theme="dark"] .unlock-dialog,
+html[data-theme="dark"] .unlock-dialog iframe,
+html[data-theme="dark"] .unlock-close,
+html[data-theme="dark"] .back,
+html[data-theme="dark"] .docs-manage {
+  background: var(--panel);
+  color: var(--text);
+}
+
+html[data-theme="dark"] .pin-unlock,
+html[data-theme="dark"] .back,
+html[data-theme="dark"] .docs-manage {
+  color: var(--link);
+}
+
+html[data-theme="dark"] .pin-unlock:hover,
+html[data-theme="dark"] .unlock-close:hover,
+html[data-theme="dark"] .back:hover,
+html[data-theme="dark"] .back:focus-visible,
+html[data-theme="dark"] .docs-manage:hover,
+html[data-theme="dark"] .theme-toggle:hover {
+  background: var(--bg-2);
+}
+
+html[data-theme="dark"] .doc-badge {
+  background: #22395c;
+  color: #cfe0ff;
+}
+
+html[data-theme="dark"] .tile-docs {
+  background: linear-gradient(180deg, #12251b, var(--ok-bg));
+}
+
+html[data-theme="dark"] .tile-docs .tile-title { color: #b9f6d0; }
+html[data-theme="dark"] .tile-docs .tile-url { color: #85d3a8; }
+
+html[data-theme="dark"] .tile-lock {
+  border-color: #6b5a2a;
+  background: #3a2f12;
+  color: #ffd98a;
+}
+
+html[data-theme="dark"] .unlock-toast {
+  background: #eaf1fb;
+  color: #0b1220;
+}
